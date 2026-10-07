@@ -1,0 +1,105 @@
+{
+ "$defs": {
+  "OverlayType": {
+   "enum": [
+    "momentum_shift",
+    "player_tag",
+    "shot_speed",
+    "goal",
+    "card",
+    "milestone",
+    "recap_item"
+   ],
+   "title": "OverlayType",
+   "type": "string"
+  },
+  "PersonaType": {
+   "enum": [
+    "analyst",
+    "casual",
+    "newcomer",
+    "club_fan"
+   ],
+   "title": "PersonaType",
+   "type": "string"
+  }
+ },
+ "properties": {
+  "id": {
+   "description": "Unique overlay identifier, e.g., ov_001",
+   "title": "Id",
+   "type": "string"
+  },
+  "match_id": {
+   "description": "Unique match identifier, e.g., m_001",
+   "title": "Match Id",
+   "type": "string"
+  },
+  "timestamp": {
+   "description": "Match time in seconds from kickoff",
+   "minimum": 0.0,
+   "title": "Timestamp",
+   "type": "number"
+  },
+  "duration": {
+   "description": "Time in seconds the overlay stays on screen",
+   "minimum": 0.1,
+   "title": "Duration",
+   "type": "number"
+  },
+  "type": {
+   "$ref": "#/$defs/OverlayType"
+  },
+  "priority": {
+   "description": "1 (high) to 5 (low) for rendering collision resolution",
+   "title": "Priority",
+   "type": "integer"
+  },
+  "language": {
+   "description": "Language code, e.g., 'en', 'es'",
+   "title": "Language",
+   "type": "string"
+  },
+  "persona": {
+   "$ref": "#/$defs/PersonaType"
+  },
+  "text": {
+   "description": "The localized, persona-specific LLM-generated string",
+   "title": "Text",
+   "type": "string"
+  },
+  "evidence_event_ids": {
+   "description": "List of Event IDs backing this claim",
+   "items": {
+    "type": "string"
+   },
+   "title": "Evidence Event Ids",
+   "type": "array"
+  },
+  "verified": {
+   "default": false,
+   "description": "True if passed the Verifier agent",
+   "title": "Verified",
+   "type": "boolean"
+  },
+  "meta": {
+   "additionalProperties": true,
+   "description": "Flexible payload for frontend visualization",
+   "title": "Meta",
+   "type": "object"
+  }
+ },
+ "required": [
+  "id",
+  "match_id",
+  "timestamp",
+  "duration",
+  "type",
+  "priority",
+  "language",
+  "persona",
+  "text"
+ ],
+ "title": "Overlay",
+ "type": "object"
+}

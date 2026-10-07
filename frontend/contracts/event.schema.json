@@ -1,0 +1,756 @@
+{
+ "$defs": {
+  "CardColor": {
+   "enum": [
+    "yellow",
+    "red"
+   ],
+   "title": "CardColor",
+   "type": "string"
+  },
+  "CardEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "card",
+     "default": "card",
+     "title": "Type",
+     "type": "string"
+    },
+    "card_color": {
+     "$ref": "#/$defs/CardColor"
+    },
+    "reason": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Reason"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "card_color"
+   ],
+   "title": "CardEvent",
+   "type": "object"
+  },
+  "GenericMatchEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "enum": [
+      "foul",
+      "substitution"
+     ],
+     "title": "Type",
+     "type": "string"
+    },
+    "details": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Details"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "type"
+   ],
+   "title": "GenericMatchEvent",
+   "type": "object"
+  },
+  "GoalEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "goal",
+     "default": "goal",
+     "title": "Type",
+     "type": "string"
+    },
+    "shot_event_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Shot Event Id"
+    },
+    "scorer": {
+     "description": "Player who scored the goal",
+     "title": "Scorer",
+     "type": "string"
+    },
+    "assist_player": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Assist Player"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "scorer"
+   ],
+   "title": "GoalEvent",
+   "type": "object"
+  },
+  "PassEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "pass",
+     "default": "pass",
+     "title": "Type",
+     "type": "string"
+    },
+    "end_x": {
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "End X",
+     "type": "number"
+    },
+    "end_y": {
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "End Y",
+     "type": "number"
+    },
+    "speed_kmh": {
+     "default": null,
+     "description": "Pass speed in km/h",
+     "minimum": 0.0,
+     "title": "Speed Kmh",
+     "type": "number"
+    },
+    "distance": {
+     "description": "Distance in meters",
+     "minimum": 0.0,
+     "title": "Distance",
+     "type": "number"
+    },
+    "outcome": {
+     "$ref": "#/$defs/PassOutcome"
+    },
+    "difficulty_rating": {
+     "anyOf": [
+      {
+       "maximum": 1.0,
+       "minimum": 0.0,
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Difficulty Rating"
+    },
+    "receiver": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Receiver"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "end_x",
+    "end_y",
+    "distance",
+    "outcome"
+   ],
+   "title": "PassEvent",
+   "type": "object"
+  },
+  "PassOutcome": {
+   "enum": [
+    "completed",
+    "incomplete",
+    "intercepted",
+    "out_of_bounds"
+   ],
+   "title": "PassOutcome",
+   "type": "string"
+  },
+  "PossessionChangeEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "possession_change",
+     "default": "possession_change",
+     "title": "Type",
+     "type": "string"
+    },
+    "previous_team": {
+     "title": "Previous Team",
+     "type": "string"
+    },
+    "new_team": {
+     "title": "New Team",
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "previous_team",
+    "new_team"
+   ],
+   "title": "PossessionChangeEvent",
+   "type": "object"
+  },
+  "PressureEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "pressure",
+     "default": "pressure",
+     "title": "Type",
+     "type": "string"
+    },
+    "duration": {
+     "description": "Duration of press in seconds",
+     "minimum": 0.0,
+     "title": "Duration",
+     "type": "number"
+    },
+    "opponent_player": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Opponent Player"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "duration"
+   ],
+   "title": "PressureEvent",
+   "type": "object"
+  },
+  "ShotEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "shot",
+     "default": "shot",
+     "title": "Type",
+     "type": "string"
+    },
+    "speed_kmh": {
+     "default": null,
+     "description": "Shot speed in km/h",
+     "minimum": 0.0,
+     "title": "Speed Kmh",
+     "type": "number"
+    },
+    "xg": {
+     "description": "Expected Goals value",
+     "maximum": 1.0,
+     "minimum": 0.0,
+     "title": "Xg",
+     "type": "number"
+    },
+    "outcome": {
+     "$ref": "#/$defs/ShotOutcome"
+    },
+    "distance": {
+     "default": null,
+     "description": "Distance to goal in meters",
+     "minimum": 0.0,
+     "title": "Distance",
+     "type": "number"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "xg",
+    "outcome"
+   ],
+   "title": "ShotEvent",
+   "type": "object"
+  },
+  "ShotOutcome": {
+   "enum": [
+    "goal",
+    "saved",
+    "blocked",
+    "off_target",
+    "post"
+   ],
+   "title": "ShotOutcome",
+   "type": "string"
+  },
+  "TackleEvent": {
+   "properties": {
+    "id": {
+     "description": "Unique event identifier, e.g., e_1201",
+     "title": "Id",
+     "type": "string"
+    },
+    "match_id": {
+     "description": "Unique match identifier, e.g., m_001",
+     "title": "Match Id",
+     "type": "string"
+    },
+    "timestamp": {
+     "description": "Match time in seconds from kickoff",
+     "minimum": 0.0,
+     "title": "Timestamp",
+     "type": "number"
+    },
+    "team": {
+     "description": "Team identifier or club name",
+     "title": "Team",
+     "type": "string"
+    },
+    "player": {
+     "description": "Player name or identifier",
+     "title": "Player",
+     "type": "string"
+    },
+    "x": {
+     "description": "Pitch X coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "X",
+     "type": "number"
+    },
+    "y": {
+     "description": "Pitch Y coordinate (0-100)",
+     "maximum": 100.0,
+     "minimum": 0.0,
+     "title": "Y",
+     "type": "number"
+    },
+    "type": {
+     "const": "tackle",
+     "default": "tackle",
+     "title": "Type",
+     "type": "string"
+    },
+    "outcome": {
+     "enum": [
+      "won",
+      "lost"
+     ],
+     "title": "Outcome",
+     "type": "string"
+    },
+    "opponent_player": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Opponent Player"
+    }
+   },
+   "required": [
+    "id",
+    "match_id",
+    "timestamp",
+    "team",
+    "player",
+    "x",
+    "y",
+    "outcome"
+   ],
+   "title": "TackleEvent",
+   "type": "object"
+  }
+ },
+ "discriminator": {
+  "mapping": {
+   "card": "#/$defs/CardEvent",
+   "foul": "#/$defs/GenericMatchEvent",
+   "goal": "#/$defs/GoalEvent",
+   "pass": "#/$defs/PassEvent",
+   "possession_change": "#/$defs/PossessionChangeEvent",
+   "pressure": "#/$defs/PressureEvent",
+   "shot": "#/$defs/ShotEvent",
+   "substitution": "#/$defs/GenericMatchEvent",
+   "tackle": "#/$defs/TackleEvent"
+  },
+  "propertyName": "type"
+ },
+ "oneOf": [
+  {
+   "$ref": "#/$defs/PassEvent"
+  },
+  {
+   "$ref": "#/$defs/ShotEvent"
+  },
+  {
+   "$ref": "#/$defs/TackleEvent"
+  },
+  {
+   "$ref": "#/$defs/PressureEvent"
+  },
+  {
+   "$ref": "#/$defs/CardEvent"
+  },
+  {
+   "$ref": "#/$defs/GoalEvent"
+  },
+  {
+   "$ref": "#/$defs/PossessionChangeEvent"
+  },
+  {
+   "$ref": "#/$defs/GenericMatchEvent"
+  }
+ ]
+}
