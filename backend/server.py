@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
+from auth import setup_auth, websocket_principal
 from routes.overlays_stream import router as overlays_router
 from routes.events_stream import router as events_router
 from routes.match_control import router as match_control_router
