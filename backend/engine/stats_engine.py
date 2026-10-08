@@ -42,7 +42,7 @@ class StatsEngine:
         possession_changes = sum(1 for e in self.event_window if e.type == EventType.POSSESSION_CHANGE)
         tackles = sum(1 for e in self.event_window if e.type == EventType.TACKLE)
         
-        raw_chaos = (possession_changes * 10) + (tackles * 5)
+        raw_chaos = (possession_changes * 7) + (tackles * 4)
         self.chaos_index = min(100.0, float(raw_chaos))
 
         controlling_team_passes = sum(
@@ -50,8 +50,7 @@ class StatsEngine:
             if e.type == EventType.PASS and e.outcome == "completed" and e.team == self.current_possession_team
         )
         
-        # Simple weighted algorithm for control (e.g., 40 passes in 5 mins = 100% control)
-        raw_control = controlling_team_passes * 2.5
+        raw_control = controlling_team_passes * 5.0
         control_index = min(100.0, float(raw_control))
         
         return {
