@@ -1,5 +1,6 @@
 import asyncio
 import random
+import uuid
 from typing import AsyncGenerator
 from engine.event_stream_interface import EventSource
 from models.Event import (
@@ -9,8 +10,9 @@ from models.Event import (
 )
 
 class EventSimulator(EventSource):
-    def __init__(self):
+    def __init__(self, match_id: str = None):
         # Match State
+        self.match_id = match_id or f"m_{uuid.uuid4().hex[:6]}"
         self.match_time = 0.0  # in seconds
         self.team_a = "Arsenal"
         self.team_b = "Chelsea"
@@ -30,14 +32,12 @@ class EventSimulator(EventSource):
         }
 
     async def stream_events(self) -> AsyncGenerator[MatchEvent, None]:
-        """Runs a 6-minute procedural simulation."""
         while self.match_time < 360.0:
-            # Advances match time by 2 to 6 seconds per event
-            time_step = random.uniform(2.0, 6.0)
+            #Fires a random event every 3-8 seconds
+            time_step = random.uniform(3.0, 8.0)
             self.match_time += time_step
             await asyncio.sleep(1)
 
-            # Generates the next event(s) based on pitch state
             events = self._generate_next_events()
             for event in events:
                 yield event
@@ -46,8 +46,6 @@ class EventSimulator(EventSource):
         events = []
         base_id = f"e_{int(self.match_time * 10)}"
         
-        #Determines Shot Probability based on X coordinate
-        # Near midfield (x=50), probability is 0.1%. Inside the box (x>85), it rises to 15-20%.
         shot_prob = 0.001 if self.x < 60 else (self.x - 60) * 0.005
         
         action_roll = random.random()
@@ -66,11 +64,11 @@ class EventSimulator(EventSource):
         end_x = min(100.0, max(0.0, self.x + random.uniform(-5.0, 25.0)))
         end_y = min(100.0, max(0.0, self.y + random.uniform(-20.0, 20.0)))
         
-        is_completed = random.random() > 0.15  # 85% completion rate
+        is_completed = random.random() > 0.12  # 88% completion rate
         outcome = PassOutcome.COMPLETED if is_completed else PassOutcome.INTERCEPTED
 
         pass_event = PassEvent(
-            id=base_id, match_id="m_001", timestamp=self.match_time, 
+            id=base_id, match_id=self.match_id, timestamp=self.match_time, 
             team=self.possession, player=self.current_player,
             x=self.x, y=self.y, end_x=end_x, end_y=end_y, 
             distance=abs(end_x - self.x), outcome=outcome
@@ -86,7 +84,7 @@ class EventSimulator(EventSource):
             old_team = self.possession
             self._switch_possession()
             poss_change = PossessionChangeEvent(
-                id=f"{base_id}_poss", match_id="m_001", timestamp=self.match_time + 0.5,
+                id=f"{base_id}_poss", match_id=self.match_id, timestamp=self.match_time + 0.5,
                 team=self.possession, player=self.current_player, x=end_x, y=end_y,
                 previous_team=old_team, new_team=self.possession
             )
@@ -98,7 +96,7 @@ class EventSimulator(EventSource):
         outcome = ShotOutcome.GOAL if is_goal else random.choice([ShotOutcome.SAVED, ShotOutcome.OFF_TARGET])
         
         shot = ShotEvent(
-            id=base_id, match_id="m_001", timestamp=self.match_time,
+            id=base_id, match_id=self.match_id, timestamp=self.match_time,
             team=self.possession, player=self.current_player,
             x=self.x, y=self.y, xg=random.uniform(0.05, 0.4), outcome=outcome
         )
@@ -106,21 +104,21 @@ class EventSimulator(EventSource):
 
         if outcome == ShotOutcome.GOAL:
             events.append(GoalEvent(
-                id=f"{base_id}_goal", match_id="m_001", timestamp=self.match_time + 0.5,
+                id=f"{base_id}_goal", match_id=self.match_id, timestamp=self.match_time + 0.5,
                 team=self.possession, player=self.current_player, x=100.0, y=50.0,
                 shot_event_id=shot.id, scorer=self.current_player
             ))
             self._reset_to_midfield()
         elif outcome == ShotOutcome.SAVED:
             events.append(SaveEvent(
-                id=f"{base_id}_save", match_id="m_001", timestamp=self.match_time + 0.5,
+                id=f"{base_id}_save", match_id=self.match_id, timestamp=self.match_time + 0.5,
                 team=self._get_opposing_team(), player="Goalkeeper", x=100.0, y=50.0,
-                shot_event_id=shot.id
+                shot_event_id=shot.id, difficulty=random.uniform(0.4, 0.9)
             ))
             # 50% chance a save results in a corner
             if random.random() > 0.5:
                 events.append(SetPieceEvent(
-                    id=f"{base_id}_corner", match_id="m_001", timestamp=self.match_time + 3.0,
+                    id=f"{base_id}_corner", match_id=self.match_id, timestamp=self.match_time + 3.0,
                     team=self.possession, player=random.choice(self.players[self.possession]),
                     x=100.0, y=100.0, type=EventType.CORNER
                 ))
@@ -140,7 +138,7 @@ class EventSimulator(EventSource):
         if not is_foul:
             # Clean tackle, possession changes
             tackle = TackleEvent(
-                id=base_id, match_id="m_001", timestamp=self.match_time,
+                id=base_id, match_id=self.match_id, timestamp=self.match_time,
                 team=opposing_team, player=opposing_player, x=self.x, y=self.y,
                 outcome="won", opponent_player=self.current_player
             )
@@ -149,7 +147,7 @@ class EventSimulator(EventSource):
         else:
             events = []
             events.append(GenericMatchEvent(
-                id=base_id, match_id="m_001", timestamp=self.match_time,
+                id=base_id, match_id=self.match_id, timestamp=self.match_time,
                 team=opposing_team, player=opposing_player, x=self.x, y=self.y,
                 type=EventType.FOUL
             ))
@@ -158,36 +156,65 @@ class EventSimulator(EventSource):
             if random.random() > 0.8:
                 current_yellows = self.player_yellows.get(opposing_player, 0)
                 if current_yellows == 1:
-                    # Second yellow = RED
                     events.append(CardEvent(
-                        id=f"{base_id}_card", match_id="m_001", timestamp=self.match_time + 1.0,
+                        id=f"{base_id}_card", match_id=self.match_id, timestamp=self.match_time + 1.0,
                         team=opposing_team, player=opposing_player, x=self.x, y=self.y,
                         card_color=CardColor.RED, reason="Second Yellow"
                     ))
                     self.player_yellows[opposing_player] = 2
                 else:
                     events.append(CardEvent(
-                        id=f"{base_id}_card", match_id="m_001", timestamp=self.match_time + 1.0,
+                        id=f"{base_id}_card", match_id=self.match_id, timestamp=self.match_time + 1.0,
                         team=opposing_team, player=opposing_player, x=self.x, y=self.y,
                         card_color=CardColor.YELLOW, reason="Tactical Foul"
                     ))
                     self.player_yellows[opposing_player] = 1
 
-            # Penalty condition
+            #Penalty logic, 70% chance that it converts to a goal
             if self.x > 85.0 and 20.0 < self.y < 80.0:
                 events.append(SetPieceEvent(
-                    id=f"{base_id}_pen", match_id="m_001", timestamp=self.match_time + 5.0,
+                    id=f"{base_id}_pen", match_id=self.match_id, timestamp=self.match_time + 5.0,
                     team=self.possession, player=self.current_player, x=88.5, y=50.0,
                     type=EventType.PENALTY
                 ))
                 self.x, self.y = 88.5, 50.0
+                
+                is_pen_goal = random.random() < 0.70
+                outcome = ShotOutcome.GOAL if is_pen_goal else ShotOutcome.SAVED
+                
+                pen_shot = ShotEvent(
+                    id=f"{base_id}_pen_shot", match_id=self.match_id, timestamp=self.match_time + 6.0,
+                    team=self.possession, player=self.current_player, x=88.5, y=50.0,
+                    xg=0.79, outcome=outcome
+                )
+                events.append(pen_shot)
+                
+                if is_pen_goal:
+                    events.append(GoalEvent(
+                        id=f"{base_id}_pen_goal", match_id=self.match_id, timestamp=self.match_time + 6.5,
+                        team=self.possession, player=self.current_player, x=100.0, y=50.0,
+                        shot_event_id=pen_shot.id, scorer=self.current_player
+                    ))
+                    self._reset_to_midfield()
+                else:
+                    events.append(SaveEvent(
+                        id=f"{base_id}_pen_save", match_id=self.match_id, timestamp=self.match_time + 6.5,
+                        team=opposing_team, player="Goalkeeper", x=100.0, y=50.0,
+                        shot_event_id=pen_shot.id, difficulty=0.85
+                    ))
+                    self._switch_possession()
+            #Free kick in a favorable position for the attacking player       
+            elif self.x > 70.0:
+                if random.random() < 0.80:
+                    events.extend(self._handle_shot_sequence(f"{base_id}_fk_shot"))
 
             return events
 
     def _switch_possession(self):
         self.possession = self._get_opposing_team()
         self.current_player = random.choice(self.players[self.possession])
-        self.x = 100.0 - self.x # Flips the pitch coordinates for the new attacking team
+        # Flips the pitch coordinates for the new attacking team
+        self.x = 100.0 - self.x 
         self.y = 100.0 - self.y
 
     def _get_opposing_team(self) -> str:

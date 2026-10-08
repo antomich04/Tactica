@@ -50,7 +50,7 @@ class MomentDetector:
 
         if event.type == EventType.SAVE:
             diff = getattr(event, "difficulty", 0.0) or 0.0
-            if diff >= 0.7:
+            if diff >= 0.5:
                 evidence = [event.id]
                 if getattr(event, "shot_event_id", None):
                     evidence.append(event.shot_event_id)
@@ -77,7 +77,7 @@ class MomentDetector:
 
         #Momentum-Chaos spike (throttled to once every 30s)
         chaos = metrics.get("chaos_index", 0.0)
-        if chaos >= 70.0 and (event.timestamp - self._last_chaos_alert) > 30.0:
+        if chaos >= 60.0 and (event.timestamp - self._last_chaos_alert) > 30.0:
             self._last_chaos_alert = event.timestamp
             return Moment(
                 id=moment_id,
