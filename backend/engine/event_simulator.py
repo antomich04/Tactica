@@ -11,7 +11,7 @@ from models.Event import (
 class EventSimulator(EventSource):
     def __init__(self):
         # Match State
-        self.match_time = 0.0  # seconds
+        self.match_time = 0.0  # in seconds
         self.team_a = "Arsenal"
         self.team_b = "Chelsea"
         self.possession = self.team_a
@@ -30,14 +30,14 @@ class EventSimulator(EventSource):
         }
 
     async def stream_events(self) -> AsyncGenerator[MatchEvent, None]:
-        """Runs a 6-minute procedural simulation (360 seconds)."""
+        """Runs a 6-minute procedural simulation."""
         while self.match_time < 360.0:
-            # Advance match time by 2 to 6 seconds per event
+            # Advances match time by 2 to 6 seconds per event
             time_step = random.uniform(2.0, 6.0)
             self.match_time += time_step
-            await asyncio.sleep(1)  # Real-world pause for the WebSocket stream
+            await asyncio.sleep(1)
 
-            # Generate the next event(s) based on pitch state
+            # Generates the next event(s) based on pitch state
             events = self._generate_next_events()
             for event in events:
                 yield event
@@ -46,28 +46,23 @@ class EventSimulator(EventSource):
         events = []
         base_id = f"e_{int(self.match_time * 10)}"
         
-        # 1. Determine Shot Probability based on X coordinate
+        #Determines Shot Probability based on X coordinate
         # Near midfield (x=50), probability is 0.1%. Inside the box (x>85), it rises to 15-20%.
         shot_prob = 0.001 if self.x < 60 else (self.x - 60) * 0.005
         
         action_roll = random.random()
 
         if action_roll < shot_prob:
-            # SHOT SEQUENCE
             events.extend(self._handle_shot_sequence(base_id))
-        
         elif action_roll < (shot_prob + 0.15):
-            # TACKLE / FOUL SEQUENCE
             events.extend(self._handle_tackle_or_foul(base_id))
-            
         else:
-            # PASS SEQUENCE (Default, high probability)
             events.extend(self._handle_pass(base_id))
 
         return events
 
     def _handle_pass(self, base_id: str) -> list[MatchEvent]:
-        # Generate target coordinates (usually moving forward)
+        # Generates target coordinates (usually moving forward)
         end_x = min(100.0, max(0.0, self.x + random.uniform(-5.0, 25.0)))
         end_y = min(100.0, max(0.0, self.y + random.uniform(-20.0, 20.0)))
         
@@ -82,12 +77,12 @@ class EventSimulator(EventSource):
         )
         
         if is_completed:
-            # Move the ball and pick a new receiver
+            # Moves the ball and picks a new receiver
             self.x, self.y = end_x, end_y
             self.current_player = random.choice(self.players[self.possession])
             return [pass_event]
         else:
-            # Intercepted: Change possession
+            # Intercepted: Changes possession
             old_team = self.possession
             self._switch_possession()
             poss_change = PossessionChangeEvent(
@@ -152,7 +147,6 @@ class EventSimulator(EventSource):
             self._switch_possession()
             return [tackle]
         else:
-            # Foul sequence
             events = []
             events.append(GenericMatchEvent(
                 id=base_id, match_id="m_001", timestamp=self.match_time,
@@ -179,7 +173,7 @@ class EventSimulator(EventSource):
                     ))
                     self.player_yellows[opposing_player] = 1
 
-            # If foul is inside the box (x > 85, y between 20 and 80), it's a penalty
+            # Penalty condition
             if self.x > 85.0 and 20.0 < self.y < 80.0:
                 events.append(SetPieceEvent(
                     id=f"{base_id}_pen", match_id="m_001", timestamp=self.match_time + 5.0,
@@ -193,7 +187,7 @@ class EventSimulator(EventSource):
     def _switch_possession(self):
         self.possession = self._get_opposing_team()
         self.current_player = random.choice(self.players[self.possession])
-        self.x = 100.0 - self.x # Flip the pitch coordinates for the new attacking team
+        self.x = 100.0 - self.x # Flips the pitch coordinates for the new attacking team
         self.y = 100.0 - self.y
 
     def _get_opposing_team(self) -> str:

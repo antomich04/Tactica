@@ -4,7 +4,7 @@ from models.Overlays import Overlay, OverlayType, PersonaType
 
 router = APIRouter(prefix="/api")
 
-@router.websocket("/stream")
+@router.websocket("/overlays-stream")
 async def stream_overlays(websocket: WebSocket):
     await websocket.accept()
     
