@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Backend stream address used by production builds. */
-  readonly VITE_WS_URL?: string;
+  /** Backend address, e.g. http://localhost:8080. Setting it turns the login screen on. Empty = offline demo. */
+  readonly VITE_API_URL?: string;
 }
+
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }

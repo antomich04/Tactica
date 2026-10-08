@@ -5,10 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "gen:types": "python3 contracts/export_schema.py && node scripts/gen-types.mjs",
-    "check:fixture": "python3 contracts/check_fixture.py",
-    "serve:fixture": "node tools/fixture-server.mjs"
+    "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
     "react": "^19.3.0",
@@ -18,9 +15,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "json-schema-to-typescript": "^16.0.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.3",
-    "ws": "^8.22.0"
+    "vite": "^8.3.3"
   }
 }
