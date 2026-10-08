@@ -13,6 +13,11 @@ class EventType(str, Enum):
     FOUL = "foul"
     SUBSTITUTION = "substitution"
     GOAL = "goal"
+    SAVE = "save"
+    CORNER = "corner"
+    GOAL_KICK = "goal_kick"
+    PENALTY = "penalty"
+    INJURY = "injury"
 
 
 class PassOutcome(str, Enum):
@@ -52,7 +57,7 @@ class PassEvent(BaseMatchEvent):
     type: Literal[EventType.PASS] = EventType.PASS
     end_x: float = Field(..., ge=0.0, le=100.0)
     end_y: float = Field(..., ge=0.0, le=100.0)
-    speed_kmh: float = Field(None, ge=0.0, description="Pass speed in km/h")
+    speed_kmh: Optional[float] = Field(None, ge=0.0, description="Pass speed in km/h")
     distance: float = Field(..., ge=0.0, description="Distance in meters")
     outcome: PassOutcome
     difficulty_rating: Optional[float] = Field(None, ge=0.0, le=1.0)
@@ -61,10 +66,19 @@ class PassEvent(BaseMatchEvent):
 
 class ShotEvent(BaseMatchEvent):
     type: Literal[EventType.SHOT] = EventType.SHOT
-    speed_kmh: float = Field(None, ge=0.0, description="Shot speed in km/h")
+    speed_kmh: Optional[float] = Field(None, ge=0.0, description="Shot speed in km/h")
     xg: float = Field(..., ge=0.0, le=1.0, description="Expected Goals value")
     outcome: ShotOutcome
-    distance: float = Field(None, ge=0.0, description="Distance to goal in meters")
+    distance: Optional[float] = Field(None, ge=0.0, description="Distance to goal in meters")
+
+class SaveEvent(BaseMatchEvent):
+    type: Literal[EventType.SAVE] = EventType.SAVE
+    shot_event_id: Optional[str] = None
+    difficulty: Optional[float] = Field(None, ge=0.0, le=1.0, description="Save difficulty rating")
+
+class SetPieceEvent(BaseMatchEvent):
+    type: Literal[EventType.CORNER, EventType.GOAL_KICK, EventType.PENALTY]
+    taker: Optional[str] = Field(None, description="Player taking the set piece")
 
 
 class TackleEvent(BaseMatchEvent):
@@ -99,11 +113,9 @@ class PossessionChangeEvent(BaseMatchEvent):
 
 
 class GenericMatchEvent(BaseMatchEvent):
-    type: Literal[EventType.FOUL, EventType.SUBSTITUTION]
+    type: Literal[EventType.FOUL, EventType.SUBSTITUTION, EventType.INJURY]
     details: Optional[str] = None
 
-
-# Discriminated union for parsing incoming streams
 MatchEvent = Annotated[
     Union[
         PassEvent,
@@ -113,6 +125,8 @@ MatchEvent = Annotated[
         CardEvent,
         GoalEvent,
         PossessionChangeEvent,
+        SaveEvent,    
+        SetPieceEvent,
         GenericMatchEvent,
     ],
     Field(discriminator="type"),
