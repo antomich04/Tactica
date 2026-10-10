@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { Pitch } from "../Components/Pitch";
+import { API_URL } from "../Services/authService";
 import { Scoreboard } from "../Components/Scoreboard";
 import { ActiveOverlay } from "../Components/ActiveOverlay";
+import "../Styles/MatchPage.css";
 import { EventFeed } from "../Components/EventFeed";
 import { openLiveStream, replayFixture } from "../Services/streamService";
 import { Envelope, MatchEvent, Overlay, Status, User } from "../types";
@@ -12,7 +15,7 @@ const STATUS: Record<Status, string> = {
   live: "Live",
   reconnecting: "Reconnecting",
   ended: "Finished",
-  error: "Can\u2019t connect",
+  error: "Can’t connect",
 };
 
 type Props = {
@@ -28,7 +31,7 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
 
-  // 1. Data Ingestion
+  // Ignore duplicate event and overlay IDs when messages arrive more than once.
   const add = useCallback((env: Envelope) => {
     if (env.kind === "event") {
       setEvents((previous) =>
@@ -41,7 +44,7 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
     }
   }, []);
 
-  //Stream Connection Lifecycle
+  // Start or stop the stream when the running state changes.
   useEffect(() => {
     if (!running) return;
     setEvents([]);
@@ -59,7 +62,23 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
     return getWsTicket ? openLiveStream(getWsTicket, handlers) : replayFixture(handlers);
   }, [running, add, getWsTicket]);
 
-  // Derived Match State
+  // Start or stop the match and, for live sessions, start the backend simulation.
+ const toggleMatch = async () => {
+    if (running) {
+      setStatus("idle");
+      setRunning(false);
+    } else {
+      setRunning(true);
+      if (getWsTicket) {
+        try {
+          await axios.post(`${API_URL}/api/match/start`);
+        } catch (error) {
+          console.error("Failed to start backend match simulation", error);
+        }
+      }
+    }
+  };
+
   const now = useMemo(
     () => Math.max(0, ...events.map((e) => e.timestamp), ...overlays.map((o) => o.timestamp)),
     [events, overlays]
@@ -89,13 +108,7 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
       <header className="top">
         <h1>Tactica</h1>
         <div className="controls">
-          <button
-            className="go"
-            onClick={() => {
-              if (running) setStatus("idle");
-              setRunning(!running);
-            }}
-          >
+          <button className="go" onClick={toggleMatch}>
             {running ? "Stop" : hasData ? "Replay" : "Start"}
           </button>
 

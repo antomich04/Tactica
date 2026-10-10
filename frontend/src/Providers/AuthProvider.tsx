@@ -2,7 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import * as auth from "../Services/authService";
 import { AuthStatus, Session, User } from "../types";
 
-// The access token lives 5 minutes. It is renewed 30 seconds before it expires, so about every 4.5 minutes.
+// Access tokens last five minutes and are renewed 30 seconds before expiry.
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
 const RETRY_MS = 10_000;
 
@@ -57,11 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const s = await auth.refreshSession();
       if (started === auth.sessionEpoch()) signedIn(s);
     } catch (e) {
-      if (started !== auth.sessionEpoch()) return; // the user signed out meanwhile: not an error
+      if (started !== auth.sessionEpoch()) return; // Ignore a refresh failure if sign-out happened while it was pending.
 
       if (auth.isUnauthorized(e)) signedOut(firstLoad ? "" : "Your session expired. Please sign in again.");
       else if (firstLoad) signedOut(e instanceof Error ? e.message : "Can't reach the server.");
-      else schedule(RETRY_MS); // a network blip must never sign anyone out: keep trying
+      else schedule(RETRY_MS); // Retry network failures instead of signing the user out.
     }
   }, [signedIn, signedOut, schedule]);
 
@@ -69,13 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     renewRef.current = () => renew();
   }, [renew]);
 
-  // On page load there is no access token in memory. The HttpOnly cookie restores the session silently.
+  // Restore the session from the HttpOnly cookie when the page loads.
   useEffect(() => {
     void renew(true);
     return () => window.clearTimeout(timer.current);
   }, [renew]);
 
-  // Browsers pause timers in sleeping tabs. When the tab wakes up, renew at once if the token ran low.
+  // Renew immediately if a sleeping tab wakes after its token is nearly expired.
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && auth.hasSession() && auth.msUntilExpiry() < RENEW_BEFORE_EXPIRY_MS) {
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    signedIn(await auth.login(username, password)); // a wrong password throws and the login page shows it
+    signedIn(await auth.login(username, password)); // Login errors propagate to the form.
   }, [signedIn]);
 
   const logout = useCallback(async () => {

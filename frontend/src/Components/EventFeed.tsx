@@ -1,5 +1,5 @@
 import { MatchEvent, Overlay } from "../types";
-import { clock, describe } from "../utils";
+import { clock, describe } from "../Utils/match-logic";
 
 interface Props {
   overlays: Overlay[];

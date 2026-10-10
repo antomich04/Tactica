@@ -1,5 +1,5 @@
 import { MatchEvent } from "../types";
-import { clock } from "../utils";
+import { clock } from "../Utils/match-logic";
 
 interface Props {
   teams: string[];

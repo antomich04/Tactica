@@ -1,6 +1,6 @@
 import fixture from "../../fixtures/mini-match.json";
 import { Envelope, Status } from "../types";
-import { parseMessage } from "../utils";
+import { parseMessage } from "../Utils/match-logic";
 import { API_URL } from "./authService";
 
 export type Handlers = {
@@ -12,7 +12,9 @@ export type Stop = () => void;
 
 const REPLAY_SPEED = 4;
 const RETRY_MS = 2000;
-const STREAM_URL = `${API_URL.replace(/^http/, "ws")}/api/stream`;
+const WS_BASE = API_URL.replace(/^http/, "ws");
+const EVENTS_URL = `${WS_BASE}/api/events-stream`;
+const OVERLAYS_URL = `${WS_BASE}/api/overlays-stream`;
 
 const fixtureItems = fixture as Envelope[];
 
@@ -38,15 +40,19 @@ export function replayFixture(handlers: Handlers): Stop {
 }
 
 export function openLiveStream(getTicket: () => Promise<string>, handlers: Handlers): Stop {
-  let socket: WebSocket | undefined;
+  let eventsSocket: WebSocket | undefined;
+  let overlaysSocket: WebSocket | undefined;
   let retry: number | undefined;
   let stopped = false;
 
-  // error and close can both fire for one failure, so only one retry may be pending.
   function retryLater(status: Status, detail: string) {
     if (stopped || retry !== undefined) return;
-
     handlers.onStatus(status, detail);
+    
+    // Close both sockets before retrying so failed connections do not accumulate.
+    eventsSocket?.close();
+    overlaysSocket?.close();
+    
     retry = window.setTimeout(() => {
       retry = undefined;
       void connect();
@@ -56,47 +62,72 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
   async function connect() {
     handlers.onStatus("connecting");
 
-    let url: string;
+    let ticket: string;
     try {
-      url = `${STREAM_URL}?ticket=${encodeURIComponent(await getTicket())}`;
+      ticket = encodeURIComponent(await getTicket());
     } catch (e) {
       retryLater("error", e instanceof Error ? e.message : "Could not prepare the connection");
       return;
     }
 
-    if (stopped) return; // stopped while we were waiting for the ticket
+    if (stopped) return;
 
-    let opened = false;
-    const ws = new WebSocket(url);
-    socket = ws;
+    let eventsOpened = false;
+    let overlaysOpened = false;
 
-    ws.onopen = () => {
-      opened = true;
-      handlers.onStatus("live");
+    const checkLive = () => {
+      if (eventsOpened && overlaysOpened) handlers.onStatus("live");
     };
 
-    ws.onmessage = (event) => {
-      const message = parseMessage(String(event.data));
-      if (message) handlers.onMessage(message);
+    const setupSocket = (url: string, setOpened: () => void) => {
+      const ws = new WebSocket(url);
+      let localOpened = false;
+
+      ws.onopen = () => {
+        localOpened = true;
+        setOpened();
+        checkLive();
+      };
+
+      ws.onmessage = (event) => {
+        let rawData = String(event.data);
+
+        // The broadcaster wraps events with metrics; pass only the event to the parser.
+        try {
+          const parsed = JSON.parse(rawData);
+          if (parsed.event && parsed.metrics) {
+            rawData = JSON.stringify(parsed.event);
+          }
+        } catch {
+          // Leave non-JSON messages unchanged so parseMessage can reject and report them.
+        }
+
+        const message = parseMessage(rawData);
+        if (message) handlers.onMessage(message);
+      };
+
+      ws.onerror = () => {
+        if (!localOpened) retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
+      };
+
+      ws.onclose = (event) => {
+        if (stopped) return;
+
+        if (event.code === 1000) {
+          stopped = true;
+          handlers.onStatus("ended", "Stream finished");
+        } else if (localOpened) {
+          retryLater("reconnecting", "Connection dropped");
+        } else {
+          retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
+        }
+      };
+
+      return ws;
     };
 
-    ws.onerror = () => {
-      if (!opened) retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
-    };
-
-    ws.onclose = (event) => {
-      if (stopped) return;
-
-      if (event.code === 1000) {
-        // A clean close means the server finished the stream. That is not a failure.
-        stopped = true;
-        handlers.onStatus("ended", "Stream finished");
-      } else if (opened) {
-        retryLater("reconnecting", "Connection dropped");
-      } else {
-        retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
-      }
-    };
+    eventsSocket = setupSocket(`${EVENTS_URL}?ticket=${ticket}`, () => { eventsOpened = true; });
+    overlaysSocket = setupSocket(`${OVERLAYS_URL}?ticket=${ticket}`, () => { overlaysOpened = true; });
   }
 
   void connect();
@@ -105,6 +136,7 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
     stopped = true;
     window.clearTimeout(retry);
     retry = undefined;
-    socket?.close();
+    eventsSocket?.close();
+    overlaysSocket?.close();
   };
 }

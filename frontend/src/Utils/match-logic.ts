@@ -1,4 +1,4 @@
-import { Envelope, MatchEvent } from "./types";
+import { Envelope, MatchEvent } from "../types";
 
 export function describe(e: MatchEvent): string {
   switch (e.type) {
@@ -32,8 +32,11 @@ export function describe(e: MatchEvent): string {
       return `${e.type} by ${e.player}${e.details ? `: ${e.details}` : ""}`;
 
     default: {
-      const unhandled: never = e;
-      return String(unhandled);
+      // Until MatchEvent includes newer backend event types, show their basic text details.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fallback = e as any;
+      const typeStr = typeof fallback.type === "string" ? fallback.type.replace("_", " ") : "Action";
+      return `${typeStr} by ${fallback.player || fallback.team || "player"}`;
     }
   }
 }
@@ -49,14 +52,21 @@ export function parseMessage(raw: string): Envelope | null {
   try {
     const m = JSON.parse(raw);
 
+    // Accept envelopes used by the local fixtures.
     if (m && (m.kind === "event" || m.kind === "overlay") && m.data && typeof m.data.id === "string") return m;
 
+    // The live broadcaster wraps events alongside metrics.
+    if (m && m.event && typeof m.event.id === "string") {
+      return { kind: "event", data: m.event };
+    }
+
+    // Also accept event and overlay objects sent directly.
     if (m && typeof m.id === "string") {
       if (typeof m.text === "string" && Array.isArray(m.evidence_event_ids)) return { kind: "overlay", data: m };
       if (typeof m.team === "string" && typeof m.x === "number" && typeof m.y === "number") return { kind: "event", data: m };
     }
   } catch {
-    // not JSON: fall through
+    // Invalid JSON is ignored below and reported as an unreadable stream message.
   }
 
   console.warn("Ignored unreadable stream message:", raw.slice(0, 120));

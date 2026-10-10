@@ -1,0 +1,62 @@
+@import "@fontsource-variable/geist";
+@import "tw-animate-css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Shared application colors. */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;       
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;          
+    --input: 217 33% 17%;           
+    --ring: 217 91% 60%;            
+    --radius: 0.5rem;
+
+    /* Match display colors and typography. */
+    --floor: #0f172a;
+    --ink: #f8fafc;
+    --panel: #1e293b;
+    --rule: #334155;
+    --turf-a: #1c5a39;
+    --turf-b: #22663f;
+    --line: #f2f6f1;
+    --home: #3b82f6;
+    --away: #e39a12;
+    --hl: #334155;
+    --sans: "Barlow", system-ui, sans-serif;
+    --cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    font: 400 16px/1.45 var(--sans);
+  }
+}

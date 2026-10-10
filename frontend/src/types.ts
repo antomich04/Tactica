@@ -94,7 +94,7 @@ export type Envelope =
 
 export type Status = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
 
-// Sign-in. Keep in step with backend/auth/schemas.py.
+// Keep these authentication types aligned with backend/auth/schemas.py.
 export type Role = "viewer" | "producer";
 
 export type User = {
