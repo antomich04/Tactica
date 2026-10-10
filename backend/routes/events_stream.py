@@ -1,10 +1,11 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from engine.match_broadcaster import broadcaster
+from services.auth_service import get_ws_user
 
 router = APIRouter(prefix="/api")
 
 @router.websocket("/events-stream")
-async def stream_events(websocket: WebSocket):
+async def stream_events(websocket: WebSocket, user: dict = Depends(get_ws_user)):
     await websocket.accept()
     await broadcaster.register_event_client(websocket)
     
