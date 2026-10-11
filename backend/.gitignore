@@ -1,14 +1,13 @@
-# Python cache and environments
 __pycache__/
 .venv/
 venv/
 env/
 .pytest_cache/
+migrations/
 
-# Local databases and secrets
 data/
 .env
+alembic.ini
 
-# OS files
 .DS_Store
 Thumbs.db
