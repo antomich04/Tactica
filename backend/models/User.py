@@ -11,6 +11,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="viewer")
     created_at: Mapped[datetime] = mapped_column(
@@ -27,7 +28,6 @@ class UserPreference(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     
-    # Tactica Personalization Fields
     favorite_team: Mapped[Optional[str]] = mapped_column(String(50))
     language: Mapped[str] = mapped_column(String(10), default="en")
     persona: Mapped[str] = mapped_column(String(20), default="casual")

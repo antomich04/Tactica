@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, WebSocket, WebSocketException, status, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from config.database_client import get_db_client
 from config.auth_settings import auth_settings
@@ -44,6 +44,7 @@ def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
     payload = {
         "sub": str(user.id),
         "username": user.username,
+        "email": user.email,
         "role": user.role,
         "type": token_type,
         "team": user.preferences.favorite_team if user.preferences else None,
@@ -57,14 +58,18 @@ async def register_user(data: dict, response: Response) -> dict:
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
-        query = select(User).where(User.username == data["username"])
-        result = await db_session.execute(query)
+        
+        username_query = select(User).where(User.username == data["username"])
+        if (await db_session.execute(username_query)).scalars().first():
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-        if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Username already exists!")
+        email_query = select(User).where(User.email == data["email"])
+        if (await db_session.execute(email_query)).scalars().first():
+            raise HTTPException(status_code=400, detail="Email already exists")
 
         new_user = User(
             username=data["username"],
+            email=data["email"],
             password_hash=_hash_password(data["password"])
         )
         
@@ -101,12 +106,18 @@ async def authenticate_user(data: dict, response: Response) -> dict:
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
-        query = select(User).options(selectinload(User.preferences)).where(User.username == data["username"])
+        identifier = data["username_or_email"]
+        query = select(User).options(selectinload(User.preferences)).where(
+            or_(
+                User.username == identifier,
+                User.email == identifier
+            )
+        )
         result = await db_session.execute(query)
         user = result.scalars().first()
 
         if not user or not _verify_password(data["password"], user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
         access_token = _create_token(user, "access", auth_settings.access_ttl)
         refresh_token = _create_token(user, "refresh", auth_settings.refresh_ttl)
