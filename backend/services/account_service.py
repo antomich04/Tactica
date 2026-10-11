@@ -1,4 +1,5 @@
 import secrets
+import string
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,8 +7,9 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from config.database_client import get_db_client
 from config.auth_settings import auth_settings
-from models.User import User
-from models.Session import Session
+from models.User import User, OTP
+from models.Session import Session 
+from services.email_service import send_otp_email
 from services.auth_service import (
     _hash_password, 
     _verify_password, 
@@ -118,3 +120,51 @@ async def delete_user_account(user_id: int, response: Response) -> dict:
         response.delete_cookie("refresh_token")
         
         return {"status": "success", "message": "Account permanently deleted"}
+
+async def request_verify_email(user_id: int, current_email: str) -> dict:
+    engine = get_db_client()
+    async with AsyncSession(engine) as db_session:
+        user = await db_session.get(User, user_id)
+        
+        if not user or user.email != current_email:
+            return {"status": "success", "message": "OTP sent to email if it matches your current address"}
+            
+        target_email = user.email
+        
+        await db_session.execute(delete(OTP).where(OTP.user_id == user_id, OTP.purpose == "verify_email"))
+        
+        otp_code = "".join(secrets.choice(string.digits) for _ in range(6))
+        new_otp = OTP(
+            user_id=user_id,
+            code=otp_code,
+            purpose="verify_email",
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=3)
+        )
+        db_session.add(new_otp)
+        
+        await db_session.commit()
+        
+        send_otp_email(target_email, otp_code, "verify_email")
+        
+        return {"status": "success", "message": "OTP sent to email if it matches your current address"}
+
+async def confirm_verify_email(user_id: int, otp_code: str) -> dict:
+    engine = get_db_client()
+    async with AsyncSession(engine) as db_session:
+        query = select(OTP).where(
+            OTP.user_id == user_id,
+            OTP.code == otp_code,
+            OTP.purpose == "verify_email",
+            OTP.expires_at > datetime.now(timezone.utc)
+        )
+        otp_record = (await db_session.execute(query)).scalars().first()
+        
+        if not otp_record:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+            
+        user = await db_session.get(User, user_id)
+        user.email_verified = True
+        
+        await db_session.delete(otp_record)
+        await db_session.commit()
+        return {"status": "success", "message": "Email successfully verified"}
