@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from models.UpdateEmailRequest import UpdateEmailRequest
 from models.UpdateUsernameRequest import UpdateUsernameRequest
 from models.UpdatePasswordRequest import UpdatePasswordRequest
-from models.verifyEmailRequest import VerifyEmailRequest
+from models.VerifyEmailRequest import VerifyEmailRequest
 from models.VerifyEmailConfirmRequest import VerifyEmailConfirmRequest
 from services.auth_service import get_current_user
 from services.account_service import (
