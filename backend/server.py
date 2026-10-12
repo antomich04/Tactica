@@ -1,15 +1,24 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from config.rate_limiter import limiter
 from routes.overlays_stream import router as overlays_router
 from routes.events_stream import router as events_router
 from routes.match_control import router as match_control_router
 from routes.auth_router import router as auth_router
+from routes.settings_router import router as settings_router
 from dotenv import load_dotenv
 
 app = FastAPI()
 
 load_dotenv()
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,7 +32,9 @@ app.include_router(overlays_router)
 app.include_router(events_router)
 app.include_router(match_control_router)
 app.include_router(auth_router)
+app.include_router(settings_router)
 
 @app.get("/health")
+@limiter.limit("5/minute")
 def health_check():
     return {"status": "healthy"}
