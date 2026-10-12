@@ -1,4 +1,3 @@
-import fixture from "../../fixtures/mini-match.json";
 import { Envelope, Status } from "../types";
 import { parseMessage } from "../Utils/match-logic";
 import { API_URL } from "./authService";
@@ -10,34 +9,10 @@ export type Handlers = {
 
 export type Stop = () => void;
 
-const REPLAY_SPEED = 4;
 const RETRY_MS = 2000;
 const WS_BASE = API_URL.replace(/^http/, "ws");
 const EVENTS_URL = `${WS_BASE}/api/events-stream`;
 const OVERLAYS_URL = `${WS_BASE}/api/overlays-stream`;
-
-const fixtureItems = fixture as Envelope[];
-
-export function replayFixture(handlers: Handlers): Stop {
-  handlers.onStatus("live", `Fixture replay at ${REPLAY_SPEED}x`);
-
-  const timestamps = fixtureItems.map((item) => item.data.timestamp);
-  const start = Math.min(...timestamps);
-  const end = Math.max(...timestamps);
-
-  const timers = fixtureItems.map((item) =>
-    window.setTimeout(() => handlers.onMessage(item), ((item.data.timestamp - start) * 1000) / REPLAY_SPEED),
-  );
-
-  timers.push(
-    window.setTimeout(
-      () => handlers.onStatus("ended", "Fixture finished"),
-      ((end - start) * 1000) / REPLAY_SPEED + 300,
-    ),
-  );
-
-  return () => timers.forEach((timer) => window.clearTimeout(timer));
-}
 
 export function openLiveStream(getTicket: () => Promise<string>, handlers: Handlers): Stop {
   let eventsSocket: WebSocket | undefined;

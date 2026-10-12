@@ -1,10 +1,10 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Providers/AuthProvider";
-import { Button } from "@/Components/Ui/button";
-import { Input } from "@/Components/Ui/input";
-import { Label } from "@/Components/Ui/label";
-import { Alert, AlertDescription } from "@/Components/Ui/alert";
+import { Button } from "@/Components/button";
+import { Input } from "@/Components/input";
+import { Label } from "@/Components/label";
+import { Alert, AlertDescription } from "@/Components/alert";
 import { AlertCircle, Activity, Radio } from "lucide-react";
 import "../Styles/Auth.css";
 
@@ -13,17 +13,20 @@ export function LoginPage() {
   const navigate = useNavigate();
   
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
   const [fieldErrors, setFieldErrors] = useState({
     username: "",
+    email: "",
     password: ""
   });
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const handleInput = (field: "username" | "password", value: string) => {
+  const handleInput = (field: "username" | "email" | "password", value: string) => {
     if (field === "username") setUsername(value);
+    if (field === "email") setEmail(value);
     if (field === "password") setPassword(value);
     
     setFieldErrors((prev) => ({ ...prev, [field]: "" }));
@@ -32,13 +35,21 @@ export function LoginPage() {
 
   const validate = () => {
     let isValid = true;
-    const errors = { username: "", password: "" };
+    const errors = { username: "", email: "", password: "" };
 
     if (!username.trim()) {
       errors.username = "Name is required.";
       isValid = false;
     } else if (!/^[A-Za-z0-9_.-]{3,64}$/.test(username.trim())) {
       errors.username = "Name must be 3-64 characters (letters, digits, _, ., -).";
+      isValid = false;
+    }
+
+    if (!email.trim()) {
+      errors.email = "Email is required.";
+      isValid = false;
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = "Invalid email format.";
       isValid = false;
     }
 
@@ -62,15 +73,15 @@ export function LoginPage() {
     setFormError("");
 
     try {
-      await login(username.trim(), password);
+      await login(username.trim(), email.trim(), password);
     } catch (err: any) {
-      // Safely extract the error message from the backend response
       const errorMessage = 
         err?.response?.data?.detail || 
         err?.message || 
         (typeof err === "string" ? err : "Sign in failed");
         
       setFormError(errorMessage);
+    } finally {
       setBusy(false);
     }
   }
@@ -116,6 +127,24 @@ export function LoginPage() {
             />
             {fieldErrors.username && (
               <span className="field-error-text">{fieldErrors.username}</span>
+            )}
+          </div>
+
+          <div className="input-group">
+            <Label htmlFor="email" className={fieldErrors.email ? "text-destructive" : ""}>
+              Email
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => handleInput("email", e.target.value)}
+              placeholder="Enter your email"
+              autoComplete="email"
+              className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {fieldErrors.email && (
+              <span className="field-error-text">{fieldErrors.email}</span>
             )}
           </div>
 

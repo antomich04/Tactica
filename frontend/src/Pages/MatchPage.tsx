@@ -6,7 +6,7 @@ import { Scoreboard } from "../Components/Scoreboard";
 import { ActiveOverlay } from "../Components/ActiveOverlay";
 import "../Styles/MatchPage.css";
 import { EventFeed } from "../Components/EventFeed";
-import { openLiveStream, replayFixture } from "../Services/streamService";
+import { openLiveStream } from "../Services/streamService";
 import { Envelope, MatchEvent, Overlay, Status, User } from "../types";
 
 const STATUS: Record<Status, string> = {
@@ -21,7 +21,7 @@ const STATUS: Record<Status, string> = {
 type Props = {
   user?: User;
   onLogout?: () => void;
-  getWsTicket?: () => Promise<string>;
+  getWsTicket: () => Promise<string>;
 };
 
 export function MatchPage({ user, onLogout, getWsTicket }: Props) {
@@ -59,7 +59,7 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
       },
     };
 
-    return getWsTicket ? openLiveStream(getWsTicket, handlers) : replayFixture(handlers);
+    return openLiveStream(getWsTicket, handlers);
   }, [running, add, getWsTicket]);
 
   // Start or stop the match and, for live sessions, start the backend simulation.
@@ -69,12 +69,10 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
       setRunning(false);
     } else {
       setRunning(true);
-      if (getWsTicket) {
-        try {
-          await axios.post(`${API_URL}/api/match/start`);
-        } catch (error) {
-          console.error("Failed to start backend match simulation", error);
-        }
+      try {
+        await axios.post(`${API_URL}/api/match/start`, undefined, { withCredentials: true });
+      } catch (error) {
+        console.error("Failed to start backend match simulation", error);
       }
     }
   };
@@ -101,15 +99,13 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
     teams.indexOf(team) === 1 ? "var(--away)" : "var(--home)"
   ), [teams]);
 
-  const hasData = events.length > 0 || overlays.length > 0;
-
   return (
     <div className="app">
       <header className="top">
         <h1>Tactica</h1>
         <div className="controls">
           <button className="go" onClick={toggleMatch}>
-            {running ? "Stop" : hasData ? "Replay" : "Start"}
+            {running ? "Stop" : "Start"}
           </button>
 
           <span className={`status ${status}`} role="status" title={detail}>
@@ -137,9 +133,7 @@ export function MatchPage({ user, onLogout, getWsTicket }: Props) {
               <p className="empty">
                 {overlays.length
                   ? "This stream sends overlays only, so there are no events to draw yet."
-                  : getWsTicket
-                    ? "Press Start to connect to the live stream."
-                    : "Press Start to replay the fixture match."}
+                  : "Press Start to connect to the live stream."}
               </p>
             )}
           </div>

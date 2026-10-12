@@ -2,7 +2,6 @@ import axios from "axios";
 import { Session, Ticket } from "../types";
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
-export const AUTH_ENABLED = API_URL !== "";
 const TICKET_MARGIN_MS = 20_000; // refresh first if the token has less life than this left
 
 export class ApiError extends Error {
@@ -77,8 +76,16 @@ export function clearSession(): void {
   epoch += 1;
 }
 
-export async function login(username: string, password?: string): Promise<Session> {
-  return apply(await request<Session>("POST", "/api/auth/login", { username, password }));
+export async function login(username: string, email: string, password: string): Promise<Session> {
+  return apply(await request<Session>("POST", "/api/auth/login", { username, email, password }));
+}
+
+export async function register(username: string, email: string, password: string): Promise<Session> {
+  return apply(await request<Session>("POST", "/api/auth/register", {
+    username,
+    email,
+    password,
+  }));
 }
 
 const oneTabAtATime = <T>(fn: () => Promise<T>): Promise<T> =>

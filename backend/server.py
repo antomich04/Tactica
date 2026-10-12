@@ -13,7 +13,7 @@ load_dotenv()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_DEV_URL")],
+    allow_origins=[os.getenv("FRONTEND_DEV_URL", "").rstrip("/")],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
@@ -21,9 +21,6 @@ app.add_middleware(
 
 app.include_router(overlays_router)
 app.include_router(events_router)
-setup_auth(app)
-app.include_router(overlays_router, dependencies=[Depends(websocket_principal)])
-app.include_router(events_router, dependencies=[Depends(websocket_principal)])
 app.include_router(match_control_router)
 app.include_router(auth_router)
 

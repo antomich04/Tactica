@@ -1,7 +1,14 @@
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from models.RegisterRequest import RegisterRequest
 from models.LoginRequest import LoginRequest
-from services.auth_service import register_user, authenticate_user, logout_user, refresh_user_session
+from services.auth_service import (
+    authenticate_user,
+    create_ws_ticket,
+    get_current_user,
+    logout_user,
+    refresh_user_session,
+    register_user,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -20,3 +27,7 @@ async def refresh(request: Request, response: Response):
 @router.post("/logout")
 async def logout(request: Request, response: Response):
     return await logout_user(request, response)
+
+@router.post("/ws-ticket")
+async def ws_ticket(user: dict = Depends(get_current_user)):
+    return create_ws_ticket(user)

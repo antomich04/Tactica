@@ -10,7 +10,8 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   notice: string;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   getWsTicket: () => Promise<string>;
 };
@@ -87,8 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    signedIn(await auth.login(username, password)); // Login errors propagate to the form.
+  const login = useCallback(async (username: string, email: string, password: string) => {
+    signedIn(await auth.login(username, email, password)); 
+  }, [signedIn]);
+
+  const register = useCallback(async (username: string, email: string, password: string) => {
+    signedIn(await auth.register(username, email, password)); 
   }, [signedIn]);
 
   const logout = useCallback(async () => {
@@ -114,8 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signedOut]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, notice, login, logout, getWsTicket }),
-    [status, user, notice, login, logout, getWsTicket],
+    () => ({ status, user, notice, login, register, logout, getWsTicket }),
+    [status, user, notice, login, register, logout, getWsTicket],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
