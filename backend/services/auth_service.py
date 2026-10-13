@@ -1,21 +1,26 @@
 import jwt
 import bcrypt
+import logging
 import os
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
+from typing import Callable
 from fastapi import HTTPException, WebSocket, WebSocketException, status, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from config.database_client import get_db_client
 from config.auth_settings import auth_settings
+from config.db_retry_mechanism import with_db_retry
 from models.User import User, UserPreference
 from models.Session import Session
 from models.User import OTP
-from services.email_service import send_otp_email
 
-def _set_auth_cookies(response: Response, access_token: str, refresh_token: str):
+logger = logging.getLogger(__name__)
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -33,9 +38,21 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         max_age=auth_settings.refresh_ttl
     )
 
+# Helper functions
 def _hash_password(password: str) -> str:
     hashed_bytes = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     return hashed_bytes.decode('utf-8')
+
+def _lazy_hash(password: str) -> Callable[[], str]:
+    """Returns a callable that hashes on first call and reuses the result afterwards."""
+    cached: list[str] = []
+
+    def get() -> str:
+        if not cached:
+            cached.append(_hash_password(password))
+        return cached[0]
+
+    return get
 
 def _verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(
@@ -57,7 +74,10 @@ def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
     }
     return jwt.encode(payload, auth_settings.jwt_secret, algorithm="HS256")
 
-async def register_user(data: dict, response: Response) -> dict:
+#Register logic
+@with_db_retry
+async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tuple[str, str]:
+    """DB work only. Returns (access_token, refresh_token) once the commit succeeded."""
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
@@ -73,7 +93,7 @@ async def register_user(data: dict, response: Response) -> dict:
         new_user = User(
             username=data["username"],
             email=data["email"],
-            password_hash=_hash_password(data["password"])
+            password_hash=password_hash()
         )
         
         prefs_data = data.get("preferences") or {}
@@ -87,7 +107,6 @@ async def register_user(data: dict, response: Response) -> dict:
         
         await db_session.flush()
 
-        # Auto-logins the user immediately after creation
         access_token = _create_token(new_user, "access", auth_settings.access_ttl)
         refresh_token = _create_token(new_user, "refresh", auth_settings.refresh_ttl)
         session_token = secrets.token_urlsafe(64)
@@ -101,15 +120,21 @@ async def register_user(data: dict, response: Response) -> dict:
         db_session.add(new_session)
         
         await db_session.commit()
+        return access_token, refresh_token
 
-        _set_auth_cookies(response, access_token, refresh_token)
-        return {"status": "success", "message": "User registered and logged in"}
+async def register_user(data: dict) -> tuple[str, str]:
+    return await _register_user_db(data, _lazy_hash(data["password"]))
 
-async def authenticate_user(data: dict, response: Response) -> dict:
+#Login logic
+@with_db_retry
+async def _authenticate_user_db(
+    identifier: str, password: str, existing_refresh_token: str | None = None
+) -> tuple[str, str]:
+    """DB work only. Returns (access_token, refresh_token) once the commit succeeded."""
     engine = get_db_client()
+    now = datetime.now(timezone.utc)
 
     async with AsyncSession(engine) as db_session:
-        identifier = data["username_or_email"]
         query = select(User).options(selectinload(User.preferences)).where(
             or_(
                 User.username == identifier,
@@ -119,8 +144,18 @@ async def authenticate_user(data: dict, response: Response) -> dict:
         result = await db_session.execute(query)
         user = result.scalars().first()
 
-        if not user or not _verify_password(data["password"], user.password_hash):
+        if not user or not _verify_password(password, user.password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # Cleans up expired sessions for this user, plus the current device's old session
+        # if they are logging in again on the same browser, preserving other devices.
+        cleanup_condition = Session.expires_at <= now
+        if existing_refresh_token:
+            cleanup_condition = or_(cleanup_condition, Session.refresh_token == existing_refresh_token)
+
+        await db_session.execute(
+            delete(Session).where(Session.user_id == user.id, cleanup_condition)
+        )
 
         access_token = _create_token(user, "access", auth_settings.access_ttl)
         refresh_token = _create_token(user, "refresh", auth_settings.refresh_ttl)
@@ -130,33 +165,21 @@ async def authenticate_user(data: dict, response: Response) -> dict:
             user_id=user.id,
             session_token=session_token,
             refresh_token=refresh_token,
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=auth_settings.refresh_ttl)
+            expires_at=now + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
         await db_session.commit()
+        return access_token, refresh_token
 
-        _set_auth_cookies(response, access_token, refresh_token)
-        return {"status": "success", "message": "Successfully logged in"}
+async def authenticate_user(data: dict, existing_refresh_token: str | None = None) -> tuple[str, str]:
+    return await _authenticate_user_db(
+        data["username_or_email"], data["password"], existing_refresh_token
+    )
 
-async def refresh_user_session(request: Request, response: Response) -> dict:
-    refresh_token = request.cookies.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(status_code=401, detail="Refresh token missing from cookies")
-
-    try:
-        payload = jwt.decode(
-            refresh_token,
-            auth_settings.jwt_secret,
-            algorithms=["HS256"],
-            options={"require": ["exp", "sub", "type"]}
-        )
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token") from exc
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Token type mismatch")
-
-    user_id = int(payload["sub"])
+#Refresh session logic
+@with_db_retry
+async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, str]:
+    """DB work only. Returns the new (access_token, refresh_token) once committed."""
     now = datetime.now(timezone.utc)
 
     engine = get_db_client()
@@ -185,55 +208,83 @@ async def refresh_user_session(request: Request, response: Response) -> dict:
         db_session_record.expires_at = now + timedelta(seconds=auth_settings.refresh_ttl)
         
         await db_session.commit()
+        return new_access_token, new_refresh_token
 
-        _set_auth_cookies(response, new_access_token, new_refresh_token)
-        return {"status": "success", "message": "Session refreshed"}
-
-async def logout_user(request: Request, response: Response) -> dict:
-    refresh_token = request.cookies.get("refresh_token")
-    
-    # Clears cookies even if DB cleanup fails
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
-
+async def refresh_user_session(refresh_token: str | None) -> tuple[str, str]:
     if not refresh_token:
-        return {"status": "success", "message": "Logged out locally"}
+        raise HTTPException(status_code=401, detail="Refresh token missing from cookies")
 
+    try:
+        payload = jwt.decode(
+            refresh_token,
+            auth_settings.jwt_secret,
+            algorithms=["HS256"],
+            options={"require": ["exp", "sub", "type"]}
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token") from exc
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Token type mismatch")
+
+    user_id = int(payload["sub"])
+    return await _refresh_session_db(user_id, refresh_token)
+
+#Logout logic
+@with_db_retry
+async def _delete_session_db(refresh_token: str) -> None:
     engine = get_db_client()
     async with AsyncSession(engine) as db_session:
         query = delete(Session).where(Session.refresh_token == refresh_token)
         await db_session.execute(query)
         await db_session.commit()
-        
-        return {"status": "success", "message": "Successfully logged out. Session destroyed."}
 
-async def request_password_reset(email: str) -> dict:
+async def logout_user(refresh_token: str | None) -> bool:
+    """Returns True if the DB session was deleted, False if it was a local-only logout."""
+    if not refresh_token:
+        return False
+
+    try:
+        await _delete_session_db(refresh_token)
+        return True
+    except (SQLAlchemyError, OSError):
+        logger.exception("Logout: could not delete the session row (cookies were cleared)")
+        return False
+
+#Password reset logic if the user forgot his current password
+@with_db_retry
+async def _create_reset_otp_db(email: str) -> tuple[str, str] | None:
+    """Step 1 DB work. Returns (email, otp_code) if the account exists, else None."""
     engine = get_db_client()
     async with AsyncSession(engine) as db_session:
         query = select(User).where(User.email == email)
         user = (await db_session.execute(query)).scalars().first()
         
-        if user:
-            target_email = user.email
-            
-            await db_session.execute(delete(OTP).where(OTP.user_id == user.id, OTP.purpose == "forgot_password"))
-            
-            otp_code = "".join(secrets.choice(string.digits) for _ in range(6))
-            new_otp = OTP(
-                user_id=user.id,
-                code=otp_code,
-                purpose="forgot_password",
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=3)
-            )
-            db_session.add(new_otp)
-            
-            await db_session.commit()
-            
-            send_otp_email(target_email, otp_code, "forgot_password")
-            
-        return {"status": "success", "message": "If an account exists with that email, a password reset link has been sent"}
+        if not user:
+            return None
 
-async def reset_password(email: str, otp_code: str, new_password: str) -> dict:
+        target_email = user.email
+        
+        await db_session.execute(delete(OTP).where(OTP.user_id == user.id, OTP.purpose == "forgot_password"))
+        
+        otp_code = "".join(secrets.choice(string.digits) for _ in range(6))
+        new_otp = OTP(
+            user_id=user.id,
+            code=otp_code,
+            purpose="forgot_password",
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=3)
+        )
+        db_session.add(new_otp)
+        
+        await db_session.commit()
+        return target_email, otp_code
+
+async def request_password_reset(email: str) -> tuple[str, str] | None:
+    return await _create_reset_otp_db(email)
+
+@with_db_retry
+async def _verify_reset_otp_db(email: str, otp_code: str) -> None:
+    """Step 2 DB work. Validates the OTP without consuming it so Step 3 can complete."""
     engine = get_db_client()
     async with AsyncSession(engine) as db_session:
         query = select(User).where(User.email == email)
@@ -252,16 +303,47 @@ async def reset_password(email: str, otp_code: str, new_password: str) -> dict:
         
         if not otp_record:
             raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+async def verify_password_reset_otp(email: str, otp_code: str) -> None:
+    await _verify_reset_otp_db(email, otp_code)
+
+@with_db_retry
+async def _reset_password_db(
+    email: str, otp_code: str, new_password: str, new_password_hash: Callable[[], str]
+) -> None:
+    """Step 3 DB work. Re-verifies OTP, blocks same password, updates hash, and revokes sessions."""
+    engine = get_db_client()
+    async with AsyncSession(engine) as db_session:
+        query = select(User).where(User.email == email)
+        user = (await db_session.execute(query)).scalars().first()
+        
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
             
-        user.password_hash = _hash_password(new_password)
+        otp_query = select(OTP).where(
+            OTP.user_id == user.id,
+            OTP.code == otp_code,
+            OTP.purpose == "forgot_password",
+            OTP.expires_at > datetime.now(timezone.utc)
+        )
+        otp_record = (await db_session.execute(otp_query)).scalars().first()
+        
+        if not otp_record:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+        if _verify_password(new_password, user.password_hash):
+            raise HTTPException(status_code=400, detail="New password cannot be the same as the current one")
+            
+        user.password_hash = new_password_hash()
         
         await db_session.execute(delete(Session).where(Session.user_id == user.id))
         await db_session.delete(otp_record)
         await db_session.commit()
-        
-        return {"status": "success", "message": "Password successfully reset"}
 
-# Bouncers for routers to add as depedencies
+async def reset_password(email: str, otp_code: str, new_password: str) -> None:
+    await _reset_password_db(email, otp_code, new_password, _lazy_hash(new_password))
+
+# Bouncers for routers to add as dependencies
 def get_current_user(request: Request) -> dict:
     """Validates the JWT for standard REST endpoints using the access cookie."""
     token = request.cookies.get("access_token")
@@ -285,7 +367,6 @@ def get_current_user(request: Request) -> dict:
 
 def get_ws_user(websocket: WebSocket) -> dict:
     """Validates the JWT for WebSocket connections via cookies, with CSWSH protection."""
-    
     allowed_origins = [os.getenv("FRONTEND_DEV_URL")]
     origin = websocket.headers.get("origin")
     if origin not in allowed_origins:
