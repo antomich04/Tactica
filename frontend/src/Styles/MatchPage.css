@@ -34,7 +34,7 @@ h2:first-child { margin-top: 0; }
 .score { font: 700 44px/1 var(--cond); font-variant-numeric: tabular-nums; }
 .clock { margin: 0 16px; padding: 8px 16px; border-radius: 4px; background: var(--background); font: 700 30px/1 var(--cond); font-variant-numeric: tabular-nums; }
 
-main { display: grid; grid-template-columns: 1fr 340px; align-items: start; gap: 14px; }
+.app > main { display: grid; grid-template-columns: 1fr 340px; align-items: start; gap: 14px; }
 .stage { display: grid; gap: 0; }
 .pitch-wrap { position: relative; overflow: hidden; border-radius: 6px 6px 0 0; background: var(--turf-a); }
 .pitch { display: block; width: 100%; height: auto; }
@@ -64,7 +64,7 @@ em.tag { display: inline-block; margin-right: 4px; background: var(--rule); colo
 .splash { margin: 25vh 0 0; color: var(--muted-foreground); font: 600 20px var(--cond); text-align: center; }
 
 @media (max-width: 860px) {
-  main { grid-template-columns: 1fr; }
+  .app > main { grid-template-columns: 1fr; }
   .controls { margin-left: 0; }
   .rail { max-height: none; }
   .scoreboard { padding: 8px 10px; }

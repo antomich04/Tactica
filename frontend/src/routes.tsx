@@ -3,6 +3,8 @@ import { useAuth } from "./Providers/AuthProvider";
 import { LoginPage } from "./Pages/LoginPage";
 import { SignUpPage } from "./Pages/SignUpPage";
 import { MatchPage } from "./Pages/MatchPage";
+import { HomePage } from "./Pages/HomePage";
+import { NavigationBar } from "./Components/NavigationBar";
 
 function AuthGuard() {
   const { status, user } = useAuth();
@@ -22,6 +24,18 @@ function PublicGuard() {
   return !isAuthenticated ? <Outlet /> : <Navigate to="/Home" replace />;
 }
 
+// Wrapper for the Navigation Bar
+function MainLayout() {
+  return (
+    <div className="flex flex-col min-h-screen bg-[#0f172a]">
+      <NavigationBar />
+      <main className="flex-1 relative min-h-0">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
 function MatchPageWrapper() {
   const { user, logout, getWsTicket } = useAuth();
   return <MatchPage user={user!} onLogout={() => void logout()} getWsTicket={getWsTicket} />;
@@ -38,7 +52,13 @@ export const router = createBrowserRouter([
   {
     element: <AuthGuard />,
     children: [
-      { path: "/Home", element: <MatchPageWrapper /> },
+      {
+        element: <MainLayout />, // Injects the Navigation Bar into all child routes
+        children: [
+          { path: "/Home", element: <HomePage /> },
+          { path: "/Match", element: <MatchPageWrapper /> },
+        ]
+      }
     ],
   },
   {
