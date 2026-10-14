@@ -12,7 +12,6 @@ interface Props {
 }
 
 export function Scoreboard({ teams, events, matchTime, running, status, detail, onToggleMatch }: Props) {
-  // Show placeholders until the stream identifies both teams.
   const homeTeam = teams[0] || "HOME";
   const awayTeam = teams[1] || "AWAY";
 
@@ -26,20 +25,21 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
   };
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-lg flex items-center justify-between">
+    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-lg grid grid-cols-2 gap-y-3 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
       
-      <div className="flex items-center gap-3 flex-1 justify-end">
-        <span className="text-xl font-black text-white uppercase tracking-wide truncate max-w-[150px]">
+      {/* Home Team (Mobile: Top Left | Desktop: Left Side) */}
+      <div className="flex items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end order-1 min-w-0">
+        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
           {homeTeam}
         </span>
-        <Shield className="w-8 h-8 text-red-500 shrink-0" />
-        <span className="text-3xl font-black text-white ml-2 tabular-nums">
+        <Shield className="w-6 h-6 md:w-8 md:h-8 text-red-500 shrink-0" />
+        <span className="text-2xl md:text-3xl font-black text-white md:ml-2 tabular-nums shrink-0">
           {homeGoals}
         </span>
       </div>
 
-      <div className="flex flex-col items-center justify-center px-8 min-w-[180px]">
-        
+      {/* Timer and Controls (Mobile: Bottom Full Width | Desktop: Center) */}
+      <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-3 md:pt-0 shrink-0 md:px-8 md:min-w-[180px]">
         <div className="flex items-center gap-1.5 mb-1" title={detail || undefined}>
           <div className={`w-1.5 h-1.5 rounded-full ${status === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
@@ -66,12 +66,13 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
         </button>
       </div>
 
-      <div className="flex items-center gap-3 flex-1 justify-start">
-        <span className="text-3xl font-black text-white mr-2 tabular-nums">
+      {/* Away Team (Mobile: Top Right | Desktop: Right Side) */}
+      <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:justify-start order-2 md:order-3 min-w-0">
+        <span className="text-2xl md:text-3xl font-black text-white md:mr-2 tabular-nums shrink-0">
           {awayGoals}
         </span>
-        <Shield className="w-8 h-8 text-blue-500 shrink-0" />
-        <span className="text-xl font-black text-white uppercase tracking-wide truncate max-w-[150px]">
+        <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-500 shrink-0" />
+        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
           {awayTeam}
         </span>
       </div>

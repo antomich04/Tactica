@@ -6,20 +6,25 @@ import { Input } from "@/Components/input";
 import { Label } from "@/Components/label";
 import { Alert, AlertDescription } from "@/Components/alert";
 import { AlertCircle, Activity, Radio } from "lucide-react";
-import "../Styles/Auth.css";
+
+const BASE_INPUT_CLASSES =
+  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white text-2xl border border-slate-700 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
+
+const ERROR_INPUT_CLASSES =
+  "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
 
 export function LoginPage() {
   const { login, notice } = useAuth();
   const navigate = useNavigate();
-  
+
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
+
   const [fieldErrors, setFieldErrors] = useState({
     username: "",
     email: "",
-    password: ""
+    password: "",
   });
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,7 +33,7 @@ export function LoginPage() {
     if (field === "username") setUsername(value);
     if (field === "email") setEmail(value);
     if (field === "password") setPassword(value);
-    
+
     setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     setFormError("");
   };
@@ -75,11 +80,12 @@ export function LoginPage() {
     try {
       await login(username.trim(), email.trim(), password);
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error
-        ? err.message
-        : typeof err === "string"
-          ? err
-          : "Sign in failed";
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Sign in failed";
       setFormError(errorMessage);
     } finally {
       setBusy(false);
@@ -87,116 +93,153 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-layout">
-      <section className="login-brand">
-        <h1>TACTICA</h1>
-        
-        <div className="brand-features">
-          <div className="feature-card">
-            <Activity className="feature-icon" />
-            <h3>Live Intelligence</h3>
-            <p>Real-time momentum tracking and control vs chaos analytics.</p>
+    <div className="flex flex-col min-[860px]:flex-row min-h-screen w-full bg-[#070d24] text-slate-50">
+      
+      {/* Left Brand Section */}
+      <section className="flex-none min-[860px]:flex-1 flex flex-col items-center justify-center bg-[#020617] border-b min-[860px]:border-b-0 min-[860px]:border-r border-slate-800 px-8 py-16 min-[860px]:p-8">
+        <h1 className="font-[family-name:var(--cond)] text-[4rem] min-[860px]:text-[6rem] tracking-[0.05em] mb-12 text-white [text-shadow:0_0_40px_rgba(255,255,255,0.05)] leading-none">
+          TACTICA
+        </h1>
+
+        <div className="grid grid-cols-1 min-[860px]:grid-cols-2 gap-8 max-w-[720px] w-full">
+          <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-blue-500/30 rounded-2xl px-8 py-10 text-center flex flex-col items-center gap-4 backdrop-blur-md transition-all duration-200 hover:-translate-y-1">
+            <Activity className="w-12 h-12 text-blue-500 mb-2" />
+            <h3 className="m-0 font-[family-name:var(--cond)] text-[1.75rem] text-slate-50 tracking-wide">
+              Live Intelligence
+            </h3>
+            <p className="m-0 text-lg text-slate-300 leading-relaxed">
+              Real-time momentum tracking and control vs chaos analytics.
+            </p>
           </div>
-          
-          <div className="feature-card">
-            <Radio className="feature-icon" />
-            <h3>Broadcast Gallery</h3>
-            <p>Dynamic, personalized overlay generation in multiple languages.</p>
+
+          <div className="bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-blue-500/30 rounded-2xl px-8 py-10 text-center flex flex-col items-center gap-4 backdrop-blur-md transition-all duration-200 hover:-translate-y-1">
+            <Radio className="w-12 h-12 text-blue-500 mb-2" />
+            <h3 className="m-0 font-[family-name:var(--cond)] text-[1.75rem] text-slate-50 tracking-wide">
+              Broadcast Gallery
+            </h3>
+            <p className="m-0 text-lg text-slate-300 leading-relaxed">
+              Dynamic, personalized overlay generation in multiple languages.
+            </p>
           </div>
         </div>
       </section>
 
-      <section className="login-form-container">
-        <form className="login-form" onSubmit={submit} noValidate>
-          <h2>Welcome Back</h2>
-          <p className="login-subtitle">Sign in to access the broadcast gallery.</p>
+      {/* Right Form Section */}
+      <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
+        <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={submit} noValidate>
+          <div>
+            <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
+              Welcome Back
+            </h2>
+            <p className="text-slate-400 text-xl m-0">
+              Sign in to access the broadcast gallery.
+            </p>
+          </div>
 
-          <div className="input-group">
-            <Label htmlFor="username" className={fieldErrors.username ? "text-destructive" : ""}>
+          <div className="flex flex-col gap-2.5">
+            <Label
+              htmlFor="username"
+              className={`text-lg font-semibold ${fieldErrors.username ? "text-red-500" : "text-white"}`}
+            >
               Name
             </Label>
             <Input
               id="username"
               type="text"
+              aria-invalid={Boolean(fieldErrors.username)}
+              aria-describedby={fieldErrors.username ? "username-error" : undefined}
               value={username}
               onChange={(e) => handleInput("username", e.target.value)}
               placeholder="Enter your name"
               autoComplete="username"
-              className={fieldErrors.username ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={`${BASE_INPUT_CLASSES} ${fieldErrors.username ? ERROR_INPUT_CLASSES : ""}`}
               autoFocus
             />
             {fieldErrors.username && (
-              <span className="field-error-text">{fieldErrors.username}</span>
+              <span id="username-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                {fieldErrors.username}
+              </span>
             )}
           </div>
 
-          <div className="input-group">
-            <Label htmlFor="email" className={fieldErrors.email ? "text-destructive" : ""}>
+          <div className="flex flex-col gap-2.5">
+            <Label
+              htmlFor="email"
+              className={`text-lg font-semibold ${fieldErrors.email ? "text-red-500" : "text-white"}`}
+            >
               Email
             </Label>
             <Input
               id="email"
               type="email"
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email ? "email-error" : undefined}
               value={email}
               onChange={(e) => handleInput("email", e.target.value)}
               placeholder="Enter your email"
               autoComplete="email"
-              className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={`${BASE_INPUT_CLASSES} ${fieldErrors.email ? ERROR_INPUT_CLASSES : ""}`}
             />
             {fieldErrors.email && (
-              <span className="field-error-text">{fieldErrors.email}</span>
+              <span id="email-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                {fieldErrors.email}
+              </span>
             )}
           </div>
 
-          <div className="input-group">
-            <Label htmlFor="password" className={fieldErrors.password ? "text-destructive" : ""}>
+          <div className="flex flex-col gap-2.5">
+            <Label
+              htmlFor="password"
+              className={`text-lg font-semibold ${fieldErrors.password ? "text-red-500" : "text-white"}`}
+            >
               Password
             </Label>
             <Input
               id="password"
               type="password"
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={fieldErrors.password ? "password-error" : undefined}
               value={password}
               onChange={(e) => handleInput("password", e.target.value)}
               placeholder="Enter your password"
               autoComplete="current-password"
-              className={fieldErrors.password ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={`${BASE_INPUT_CLASSES} ${fieldErrors.password ? ERROR_INPUT_CLASSES : ""}`}
             />
             {fieldErrors.password && (
-              <span className="field-error-text">{fieldErrors.password}</span>
+              <span id="password-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                {fieldErrors.password}
+              </span>
             )}
           </div>
 
           {formError && (
-            <div 
-              className="mt-4 p-3 rounded-md flex items-center gap-2" 
-              style={{ 
-                backgroundColor: "rgba(239, 68, 68, 0.1)", 
-                color: "#ef4444", 
-                border: "1px solid #ef4444" 
-              }}
-            >
-              <AlertCircle className="h-5 w-5" />
-              <span className="font-medium">{formError}</span>
+            <div role="alert" className="mt-2 p-4 rounded-xl flex items-center gap-3 bg-red-500/10 text-red-500 border border-red-500">
+              <AlertCircle className="h-6 w-6 shrink-0" />
+              <span className="font-medium text-lg">{formError}</span>
             </div>
           )}
 
           {!formError && notice && (
-            <Alert className="mt-2 text-blue-500">
+            <Alert className="mt-2 bg-transparent border-none p-0 shadow-none text-slate-300 text-lg [&>svg]:hidden">
               <AlertDescription>{notice}</AlertDescription>
             </Alert>
           )}
 
-          <Button type="submit" className="w-full mt-4" disabled={busy}>
+          <Button
+            type="submit"
+            className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xl h-16 rounded-xl transition-colors"
+            disabled={busy}
+          >
             {busy ? "Signing in..." : "Login"}
           </Button>
 
-          <div className="form-footer">
-            <p>
+          <div className="text-center mt-2 text-lg text-slate-400">
+            <p className="m-0">
               Don't have an account?{" "}
-              <Button 
-                variant="link" 
-                type="button" 
-                className="p-0 h-auto font-semibold"
+              <Button
+                variant="link"
+                type="button"
+                className="p-0 h-auto font-semibold text-lg text-blue-500 hover:underline bg-transparent"
                 onClick={() => navigate("/SignUp")}
               >
                 Sign up

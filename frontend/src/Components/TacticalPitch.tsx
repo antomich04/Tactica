@@ -55,18 +55,21 @@ export function TacticalPitch({ teamColor, players }: TacticalPitchProps) {
       <div className="absolute top-0 left-1/4 w-1/2 h-[18%] border-2 border-slate-500/30 border-t-0" />
       <div className="absolute top-0 left-[37.5%] w-1/4 h-[6%] border-2 border-slate-500/30 border-t-0" />
 
-      {players.map((player, index) => {
+      {players.map((player) => {
         const position = ROLE_POSITIONS[player.role] || { top: "50%", left: "50%" };
         
         return (
           <div 
-            key={index}
-            className="group absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer"
+            key={`${player.name}-${player.role}`}
+            role="img"
+            aria-label={`${player.name}, ${player.role}`}
+            tabIndex={0}
+            className="group absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             style={{ top: position.top, left: position.left }}
           >
             <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${dotColor} ${glowColor} transition-transform duration-200 group-hover:scale-125`} />
             
-            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none transition-opacity duration-200">
+            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none transition-opacity duration-200">
               <div className="bg-slate-900 border border-slate-700 text-slate-100 text-xs font-bold py-1 px-3 rounded shadow-xl whitespace-nowrap">
                 {player.name} <span className="text-slate-400 font-normal ml-1">{player.role}</span>
               </div>

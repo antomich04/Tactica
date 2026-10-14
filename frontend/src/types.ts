@@ -102,8 +102,8 @@ export type Overlay = {
 };
 
 export type MatchMetrics = {
-  chaos_index?: number | string;
-  control_index?: number | string;
+  chaos_index?: number;
+  control_index?: number;
   controlling_team?: string;
 };
 

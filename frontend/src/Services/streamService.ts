@@ -10,9 +10,10 @@ export type Handlers = {
 export type Stop = () => void;
 
 const RETRY_MS = 2000;
-const WS_BASE = API_URL.replace(/^http/, "ws");
-const EVENTS_URL = `${WS_BASE}/api/events-stream`;
-const OVERLAYS_URL = `${WS_BASE}/api/overlays-stream`;
+const WS_BASE = new URL(API_URL || window.location.origin);
+WS_BASE.protocol = WS_BASE.protocol === "https:" ? "wss:" : "ws:";
+const EVENTS_URL = new URL("/api/events-stream", WS_BASE).toString();
+const OVERLAYS_URL = new URL("/api/overlays-stream", WS_BASE).toString();
 
 export function openLiveStream(getTicket: () => Promise<string>, handlers: Handlers): Stop {
   let eventsSocket: WebSocket | undefined;
@@ -90,8 +91,12 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
       return ws;
     };
 
-    eventsSocket = setupSocket(`${EVENTS_URL}?ticket=${ticket}`, () => { eventsOpened = true; });
-    overlaysSocket = setupSocket(`${OVERLAYS_URL}?ticket=${ticket}`, () => { overlaysOpened = true; });
+    const eventUrl = new URL(EVENTS_URL);
+    eventUrl.searchParams.set("ticket", ticket);
+    const overlayUrl = new URL(OVERLAYS_URL);
+    overlayUrl.searchParams.set("ticket", ticket);
+    eventsSocket = setupSocket(eventUrl.toString(), () => { eventsOpened = true; });
+    overlaysSocket = setupSocket(overlayUrl.toString(), () => { overlaysOpened = true; });
   }
 
   void connect();

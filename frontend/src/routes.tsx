@@ -4,6 +4,7 @@ import { LoginPage } from "./Pages/LoginPage";
 import { SignUpPage } from "./Pages/SignUpPage";
 import { MatchPage } from "./Pages/MatchPage";
 import { HomePage } from "./Pages/HomePage";
+import { SettingsPage } from "./Pages/SettingsPage";
 import { NavigationBar } from "./Components/NavigationBar";
 
 function AuthGuard() {
@@ -56,6 +57,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/Home", element: <HomePage /> },
           { path: "/Match", element: <MatchPageWrapper /> },
+          { path: "/Settings", element: <SettingsPage /> },
         ]
       }
     ],

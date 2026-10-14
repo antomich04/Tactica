@@ -1,25 +1,26 @@
 import { useMemo } from "react";
-import { MatchEvent, PassEvent, ShotEvent } from "../types";
+import type { MatchEvent } from "../types";
 
 interface LivePitchProps {
   events: MatchEvent[];
+  colorOf: (team: string) => string;
 }
 
-export function LivePitch({ events }: LivePitchProps) {
+export function LivePitch({ events, colorOf }: LivePitchProps) {
   const visibleEvents = useMemo(() => events.slice(-6), [events]);
-
-  const getTeamColor = (team: string) => {
-    return team === "Arsenal" ? "#ef4444" : "#3b82f6";
-  };
 
   // Event coordinates are percentages; convert them to the pitch's 105-by-68 SVG units.
   const sx = (val: number) => (val / 100) * 105;
   const sy = (val: number) => (val / 100) * 68;
 
   return (
-    <div className="w-full max-w-[700px] mx-auto relative bg-emerald-900/40 border-2 border-slate-600 rounded-xl overflow-hidden aspect-[105/68] shadow-2xl">
+    <div
+      role="img"
+      aria-label="Pitch showing the six most recent live match events"
+      className="w-full max-w-[700px] mx-auto relative bg-emerald-900/40 border-2 border-slate-600 rounded-xl overflow-hidden aspect-[105/68] shadow-2xl"
+    >
       
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 105 68">
+      <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 105 68">
         <rect x="1" y="1" width="103" height="66" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
         <line x1="52.5" y1="1" x2="52.5" y2="67" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
         <circle cx="52.5" cy="34" r="9.15" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
@@ -29,7 +30,7 @@ export function LivePitch({ events }: LivePitchProps) {
         <rect x="98.5" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
       </svg>
 
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 105 68">
+      <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 105 68">
         <defs>
           <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
@@ -40,39 +41,37 @@ export function LivePitch({ events }: LivePitchProps) {
         </defs>
 
         {visibleEvents.map((event, index) => {
-          const color = getTeamColor(event.team);
+          const color = colorOf(event.team);
           const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length; 
-          const markerId = event.team === "Arsenal" ? "url(#arrow-red)" : "url(#arrow-blue)";
+          const markerId = color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
 
           if ('end_x' in event) {
-            const pass = event as PassEvent;
-            const isIntercepted = pass.outcome === "intercepted";
+            const isIntercepted = event.outcome === "intercepted";
             return (
               <g key={event.id} opacity={opacity}>
                 <line
-                  x1={sx(pass.x)} y1={sy(pass.y)}
-                  x2={sx(pass.end_x)} y2={sy(pass.end_y)}
+                  x1={sx(event.x)} y1={sy(event.y)}
+                  x2={sx(event.end_x)} y2={sy(event.end_y)}
                   stroke={color}
                   strokeWidth="0.6"
                   strokeDasharray={isIntercepted ? "1.5, 1.5" : "none"}
                   markerEnd={markerId}
                 />
-                <circle cx={sx(pass.x)} cy={sy(pass.y)} r="0.6" fill={color} />
+                <circle cx={sx(event.x)} cy={sy(event.y)} r="0.6" fill={color} />
               </g>
             );
           }
 
           if ('xg' in event) {
-            const shot = event as ShotEvent;
-            const radius = Math.max(1, (shot.xg as number) * 5); 
-            const isGoal = shot.outcome === "goal";
+            const radius = Math.max(1, event.xg * 5);
+            const isGoal = event.outcome === "goal";
             return (
               <g key={event.id} opacity={opacity}>
-                <circle cx={sx(shot.x)} cy={sy(shot.y)} r={radius} fill="none" stroke={color} strokeWidth="0.4" />
-                <circle cx={sx(shot.x)} cy={sy(shot.y)} r={radius * 0.4} fill={color} />
+                <circle cx={sx(event.x)} cy={sy(event.y)} r={radius} fill="none" stroke={color} strokeWidth="0.4" />
+                <circle cx={sx(event.x)} cy={sy(event.y)} r={radius * 0.4} fill={color} />
                 
                 {isGoal && (
-                  <circle cx={sx(shot.x)} cy={sy(shot.y)} r={radius + 1.5} fill="none" stroke="#fbbf24" strokeWidth="0.5">
+                  <circle cx={sx(event.x)} cy={sy(event.y)} r={radius + 1.5} fill="none" stroke="#fbbf24" strokeWidth="0.5">
                     <animate attributeName="r" values={`${radius};${radius + 6}`} dur="1.5s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite" />
                   </circle>
