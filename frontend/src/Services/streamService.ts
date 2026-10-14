@@ -1,4 +1,4 @@
-import { Envelope, Status } from "../types";
+import type { Envelope, Status } from "../types";
 import { parseMessage } from "../Utils/match-logic";
 import { API_URL } from "./authService";
 
@@ -24,7 +24,6 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
     if (stopped || retry !== undefined) return;
     handlers.onStatus(status, detail);
     
-    // Close both sockets before retrying so failed connections do not accumulate.
     eventsSocket?.close();
     overlaysSocket?.close();
     
@@ -65,20 +64,10 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
       };
 
       ws.onmessage = (event) => {
-        let rawData = String(event.data);
-
-        // The broadcaster wraps events with metrics; pass only the event to the parser.
-        try {
-          const parsed = JSON.parse(rawData);
-          if (parsed.event && parsed.metrics) {
-            rawData = JSON.stringify(parsed.event);
-          }
-        } catch {
-          // Leave non-JSON messages unchanged so parseMessage can reject and report them.
+        const message = parseMessage(String(event.data));
+        if (message) {
+          handlers.onMessage(message);
         }
-
-        const message = parseMessage(rawData);
-        if (message) handlers.onMessage(message);
       };
 
       ws.onerror = () => {

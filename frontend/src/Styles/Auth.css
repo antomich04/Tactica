@@ -137,10 +137,6 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
 }
 
-.input-group input.has-error {
-  border-color: #ef4444 !important;
-}
-
 .login-form button[type="submit"] {
   background-color: #3b82f6 !important;
   color: #ffffff !important;

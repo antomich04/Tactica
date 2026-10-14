@@ -1,4 +1,4 @@
-/* ================= PAGE LAYOUT ================= */
+/* Page layout */
 .home-layout {
   width: 100%;
   min-height: calc(100vh - 89px);
@@ -62,7 +62,7 @@
   }
 }
 
-/* ================= NEXT MATCH SECTION ================= */
+/* Next match card */
 .next-match-card {
   position: relative;
   background-color: #1e293b;
@@ -166,7 +166,7 @@
   filter: drop-shadow(0 10px 8px rgba(0, 0, 0, 0.2));
 }
 
-/* ================= MATCH DETAILS SECTION ================= */
+/* Match details */
 .match-details-section {
   display: flex;
   flex-direction: column;
@@ -212,7 +212,7 @@
   font-size: 0.875rem;
 }
 
-/* ================= SIDEBAR RECENT MATCHES ================= */
+/* Recent matches sidebar */
 .sidebar-match-list {
   display: flex;
   flex-direction: column;
@@ -265,7 +265,7 @@
   transition: background-color 0.2s;
 }
 
-/* Override the shadcn/Tailwind button radius for recent-match actions. */
+/* Give recent-match actions a larger radius than the shared button style. */
 .home-sidebar .recent-match-header .view-button {
   border-radius: 0.65rem;
   font-size: 1.07rem;

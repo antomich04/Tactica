@@ -6,6 +6,8 @@ export type MatchEvent =
   | CardEvent
   | GoalEvent
   | PossessionChangeEvent
+  | SaveEvent
+  | SetPieceEvent
   | GenericMatchEvent;
 
 export type BaseEvent = {
@@ -35,6 +37,17 @@ export type ShotEvent = BaseEvent & {
   xg: number;
   outcome: "goal" | "saved" | "blocked" | "off_target" | "post";
   distance?: number;
+};
+
+export type SaveEvent = BaseEvent & {
+  type: "save";
+  shot_event_id?: string;
+  difficulty?: number;
+};
+
+export type SetPieceEvent = BaseEvent & {
+  type: "corner" | "goal_kick" | "penalty";
+  taker?: string;
 };
 
 export type TackleEvent = BaseEvent & {
@@ -69,7 +82,7 @@ export type PossessionChangeEvent = BaseEvent & {
 };
 
 export type GenericMatchEvent = BaseEvent & {
-  type: "foul" | "substitution";
+  type: "foul" | "substitution" | "injury";
   details?: string;
 };
 
@@ -88,13 +101,19 @@ export type Overlay = {
   meta: Record<string, unknown>;
 };
 
+export type MatchMetrics = {
+  chaos_index?: number | string;
+  control_index?: number | string;
+  controlling_team?: string;
+};
+
 export type Envelope =
-  | { kind: "event"; data: MatchEvent }
+  | { kind: "event"; data: MatchEvent; metrics?: MatchMetrics }
   | { kind: "overlay"; data: Overlay };
 
 export type Status = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
 
-// Keep these authentication types aligned with backend/auth/schemas.py.
+// Keep the frontend role values in sync with the backend authentication schema.
 export type Role = "viewer" | "producer";
 
 export type User = {
@@ -106,7 +125,7 @@ export type User = {
 export type Session = {
   access_token: string;
   token_type: "bearer";
-  /** Seconds until the access token expires (300 = 5 minutes). */
+  /** Access-token lifetime in seconds. */
   expires_in: number;
   user: User;
 };

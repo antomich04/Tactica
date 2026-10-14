@@ -4,7 +4,6 @@ import { useAuth } from "../Providers/AuthProvider";
 import { Button } from "@/Components/button";
 import { Input } from "@/Components/input";
 import { Label } from "@/Components/label";
-import { Alert, AlertDescription } from "@/Components/alert";
 import { AlertCircle, Activity, Radio } from "lucide-react";
 import "../Styles/Auth.css";
 
@@ -84,11 +83,12 @@ export function SignUpPage() {
     try {
       await register(username.trim(), email.trim(), password);
       navigate("/Home"); 
-    } catch (err: any) {
-      const errorMessage = 
-        err?.response?.data?.detail || 
-        err?.message || 
-        (typeof err === "string" ? err : "Sign up failed");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : "Sign up failed";
       setFormError(errorMessage);
     } finally {
       setBusy(false);

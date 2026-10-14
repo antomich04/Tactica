@@ -2,7 +2,7 @@ import axios from "axios";
 import { Session, Ticket } from "../types";
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
-const TICKET_MARGIN_MS = 20_000; // refresh first if the token has less life than this left
+const TICKET_MARGIN_MS = 20_000; // Refresh before requesting a ticket if the token expires within 20 seconds.
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -56,9 +56,9 @@ async function request<T>(method: "GET" | "POST", path: string, data?: unknown, 
 }
 
 let accessToken: string | null = null;
-let expiresAt = 0; // Expiry time in milliseconds since the Unix epoch.
+let expiresAt = 0; // Access-token expiry as a Unix timestamp in milliseconds.
 let inflight: Promise<Session> | null = null;
-let epoch = 0; // Incremented on sign-out so pending refreshes cannot restore the session.
+let epoch = 0; // Sign-out increments this to invalidate any refresh already in flight.
 
 export const hasSession = () => accessToken !== null;
 export const msUntilExpiry = () => expiresAt - Date.now();
@@ -97,7 +97,7 @@ export function refreshSession(): Promise<Session> {
 
     try {
       const s = await oneTabAtATime(() => request<Session>("POST", "/api/auth/refresh", undefined, { cookieAuth: true }));
-      if (epoch !== startedAt) throw new ApiError(401, "Signed out"); // Sign-out happened while refresh was pending.
+      if (epoch !== startedAt) throw new ApiError(401, "Signed out"); // Prevent a pending refresh from restoring a signed-out session.
       return apply(s);
     } finally {
       inflight = null;

@@ -24,7 +24,6 @@ function PublicGuard() {
   return !isAuthenticated ? <Outlet /> : <Navigate to="/Home" replace />;
 }
 
-// Wrapper for the Navigation Bar
 function MainLayout() {
   return (
     <div className="flex flex-col min-h-screen bg-[#0f172a]">
@@ -37,8 +36,8 @@ function MainLayout() {
 }
 
 function MatchPageWrapper() {
-  const { user, logout, getWsTicket } = useAuth();
-  return <MatchPage user={user!} onLogout={() => void logout()} getWsTicket={getWsTicket} />;
+  const { getWsTicket } = useAuth();
+  return <MatchPage getWsTicket={getWsTicket} />;
 }
 
 export const router = createBrowserRouter([
@@ -53,7 +52,7 @@ export const router = createBrowserRouter([
     element: <AuthGuard />,
     children: [
       {
-        element: <MainLayout />, // Injects the Navigation Bar into all child routes
+        element: <MainLayout />,
         children: [
           { path: "/Home", element: <HomePage /> },
           { path: "/Match", element: <MatchPageWrapper /> },

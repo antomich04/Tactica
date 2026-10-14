@@ -2,7 +2,7 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import * as auth from "../Services/authService";
 import { AuthStatus, Session, User } from "../types";
 
-// Access tokens last five minutes and are renewed 30 seconds before expiry.
+// Schedule refresh 30 seconds before the access token's reported expiry.
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
 const RETRY_MS = 10_000;
 
@@ -58,11 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const s = await auth.refreshSession();
       if (started === auth.sessionEpoch()) signedIn(s);
     } catch (e) {
-      if (started !== auth.sessionEpoch()) return; // Ignore a refresh failure if sign-out happened while it was pending.
+      if (started !== auth.sessionEpoch()) return; // Do not restore a session after a concurrent sign-out.
 
       if (auth.isUnauthorized(e)) signedOut(firstLoad ? "" : "Your session expired. Please sign in again.");
       else if (firstLoad) signedOut(e instanceof Error ? e.message : "Can't reach the server.");
-      else schedule(RETRY_MS); // Retry network failures instead of signing the user out.
+      else schedule(RETRY_MS); // Keep the session active while retrying a transient network failure.
     }
   }, [signedIn, signedOut, schedule]);
 
@@ -70,13 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     renewRef.current = () => renew();
   }, [renew]);
 
-  // Restore the session from the HttpOnly cookie when the page loads.
+  // Restore the session from its HttpOnly cookie when the app starts.
   useEffect(() => {
     void renew(true);
     return () => window.clearTimeout(timer.current);
   }, [renew]);
 
-  // Renew immediately if a sleeping tab wakes after its token is nearly expired.
+  // A suspended tab may miss its timer, so check expiry again when it becomes visible.
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible" && auth.hasSession() && auth.msUntilExpiry() < RENEW_BEFORE_EXPIRY_MS) {

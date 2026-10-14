@@ -51,19 +51,25 @@ const CHELSEA_STARTERS: TacticalPlayer[] = [
   { name: "N. Jackson", role: "ST" },
 ];
 
+type SidebarMatchCardProps = {
+  homeTeam: string;
+  awayTeam: string;
+  score: string;
+  date: string;
+  onView: () => void;
+};
+
 export function HomePage() {
   const navigate = useNavigate();
 
   return (
     <div className="home-layout">
       
-      {/* LEFT COLUMN */}
       <main className="home-main">
         <NextMatchSection />
         <MatchDetailsSection />
       </main>
 
-      {/* RIGHT COLUMN */}
       <aside className="home-sidebar">
         <h2 className="section-title text-2xl mb-3">Recent Matches</h2>
         <div className="sidebar-match-list">
@@ -107,7 +113,6 @@ function NextMatchSection() {
           </div>
 
           <div className="team-info">
-            {/* Updated to a blue theme for Chelsea */}
             <div className="away-crest-container" style={{
               background: "linear-gradient(to bottom right, rgba(59, 130, 246, 0.1), rgba(29, 78, 216, 0.3))",
               borderColor: "rgba(59, 130, 246, 0.4)",
@@ -132,17 +137,14 @@ function MatchDetailsSection() {
         <div className="absolute inset-0 rounded-[inherit] bg-slate-900/50 pointer-events-none" />
         <CardContent className="relative z-10 w-full p-6 md:p-10 flex flex-col gap-8">
           
-          {/* Header */}
           <div className="flex items-center justify-center gap-4 border-b border-slate-700/50 pb-6">
             <Users className="w-6 h-6 text-slate-400" />
             <h3 className="text-xl font-bold text-slate-200 uppercase tracking-widest m-0">Starting Lineups & Tactics</h3>
             <Target className="w-6 h-6 text-slate-400" />
           </div>
 
-          {/* Pitches Container */}
           <div className="flex flex-col xl:flex-row justify-center gap-10 xl:gap-16">
             
-            {/* Arsenal Side */}
             <div className="flex-1 flex flex-col items-center gap-4">
               <div className="text-center">
                 <span className="block text-2xl font-black text-red-500 mb-1">Arsenal</span>
@@ -153,7 +155,6 @@ function MatchDetailsSection() {
               <TacticalPitch teamColor="red" players={ARSENAL_STARTERS} />
             </div>
 
-            {/* Chelsea Side */}
             <div className="flex-1 flex flex-col items-center gap-4">
               <div className="text-center">
                 <span className="block text-2xl font-black text-blue-500 mb-1">Chelsea</span>
@@ -171,7 +172,7 @@ function MatchDetailsSection() {
   );
 }
 
-function SidebarMatchCard({ homeTeam, awayTeam, score, date, onView }: any) {
+function SidebarMatchCard({ homeTeam, awayTeam, score, date, onView }: SidebarMatchCardProps) {
   return (
     <Card className="recent-match-card border-slate-700">
       <CardContent className="recent-match-card-content">

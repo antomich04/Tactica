@@ -74,12 +74,12 @@ export function LoginPage() {
 
     try {
       await login(username.trim(), email.trim(), password);
-    } catch (err: any) {
-      const errorMessage = 
-        err?.response?.data?.detail || 
-        err?.message || 
-        (typeof err === "string" ? err : "Sign in failed");
-        
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : "Sign in failed";
       setFormError(errorMessage);
     } finally {
       setBusy(false);

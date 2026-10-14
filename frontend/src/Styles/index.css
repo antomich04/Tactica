@@ -7,7 +7,7 @@
 
 @layer base {
   :root {
-    /* Shared application colors. */
+    /* Theme colors shared by the application components. */
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
     --card: 222 47% 11%;
@@ -33,7 +33,7 @@
     --ring: 217 91% 60%;            
     --radius: 0.5rem;
 
-    /* Match display colors and typography. */
+    /* Colors and fonts used by the match display. */
     --floor: #0f172a;
     --ink: #f8fafc;
     --panel: #1e293b;
