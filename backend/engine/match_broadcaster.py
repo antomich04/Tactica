@@ -5,12 +5,14 @@ from engine.event_simulator import EventSimulator
 from engine.stats_engine import StatsEngine
 from engine.moment_detector import MomentDetector
 from engine.overlay_generator import moment_to_fast_overlay
+from engine.momentum_tracker import MomentumTracker
 
 class MatchBroadcaster:
     def __init__(self):
         self.simulator = None
         self.stats_engine = None
         self.moment_detector = None
+        self.momentum_tracker = None
         
         self.event_subscribers: Set[WebSocket] = set()
         self.overlay_subscribers: Set[WebSocket] = set()
@@ -35,6 +37,7 @@ class MatchBroadcaster:
         self.simulator = EventSimulator() 
         self.stats_engine = StatsEngine()
         self.moment_detector = MomentDetector()
+        self.momentum_tracker = MomentumTracker()
         
         self._running_task = asyncio.create_task(self._run_loop())
         
@@ -45,13 +48,14 @@ class MatchBroadcaster:
         }
 
     async def _run_loop(self):
-        """The actual background loop that processes the match."""
         async for event in self.simulator.stream_events():
             metrics = self.stats_engine.process_event(event)
+            momentum_data = self.momentum_tracker.update(event)
 
             event_payload = {
                 "event": event.model_dump(),
-                "metrics": metrics
+                "metrics": metrics,
+                "momentum": momentum_data
             }
             await self._broadcast_json(self.event_subscribers, event_payload)
 

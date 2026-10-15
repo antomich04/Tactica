@@ -1,6 +1,5 @@
 from pydantic import BaseModel, EmailStr
 
 class LoginRequest(BaseModel):
-    username: str
-    email: EmailStr
+    username_or_email: str
     password: str

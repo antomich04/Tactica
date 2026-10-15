@@ -2,16 +2,19 @@ import jwt
 import bcrypt
 import os
 import secrets
+import string
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, WebSocket, WebSocketException, status, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from config.database_client import get_db_client
 import uuid
 from config.auth_settings import auth_settings
 from models.User import User, UserPreference
 from models.Session import Session
+from models.User import OTP
+from services.email_service import send_otp_email
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str):
     response.set_cookie(
@@ -46,6 +49,7 @@ def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
         "jti": str(uuid.uuid4()),  #This guarantees 100% uniqueness
         "sub": str(user.id),
         "username": user.username,
+        "email": user.email,
         "role": user.role,
         "type": token_type,
         "team": user.preferences.favorite_team if user.preferences else None,
@@ -74,11 +78,14 @@ async def register_user(data: dict, response: Response) -> dict:
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
-        query = select(User).where(User.username == data["username"])
-        result = await db_session.execute(query)
+        
+        username_query = select(User).where(User.username == data["username"])
+        if (await db_session.execute(username_query)).scalars().first():
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-        if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Username already exists!")
+        email_query = select(User).where(User.email == data["email"])
+        if (await db_session.execute(email_query)).scalars().first():
+            raise HTTPException(status_code=400, detail="Email already exists")
 
         new_user = User(
             username=data["username"],
@@ -118,12 +125,18 @@ async def authenticate_user(data: dict, response: Response) -> dict:
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
-        query = select(User).options(selectinload(User.preferences)).where(User.username == data["username"])
+        identifier = data["username_or_email"]
+        query = select(User).options(selectinload(User.preferences)).where(
+            or_(
+                User.username == identifier,
+                User.email == identifier
+            )
+        )
         result = await db_session.execute(query)
         user = result.scalars().first()
 
         if not user or not _verify_password(data["password"], user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid username or password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
         access_token = _create_token(user, "access", auth_settings.access_ttl)
         refresh_token = _create_token(user, "refresh", auth_settings.refresh_ttl)
@@ -211,6 +224,60 @@ async def logout_user(request: Request, response: Response) -> dict:
         await db_session.commit()
         
         return {"status": "success", "message": "Successfully logged out. Session destroyed."}
+
+async def request_password_reset(email: str) -> dict:
+    engine = get_db_client()
+    async with AsyncSession(engine) as db_session:
+        query = select(User).where(User.email == email)
+        user = (await db_session.execute(query)).scalars().first()
+        
+        if user:
+            target_email = user.email
+            
+            await db_session.execute(delete(OTP).where(OTP.user_id == user.id, OTP.purpose == "forgot_password"))
+            
+            otp_code = "".join(secrets.choice(string.digits) for _ in range(6))
+            new_otp = OTP(
+                user_id=user.id,
+                code=otp_code,
+                purpose="forgot_password",
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=3)
+            )
+            db_session.add(new_otp)
+            
+            await db_session.commit()
+            
+            send_otp_email(target_email, otp_code, "forgot_password")
+            
+        return {"status": "success", "message": "If an account exists with that email, a password reset link has been sent"}
+
+async def reset_password(email: str, otp_code: str, new_password: str) -> dict:
+    engine = get_db_client()
+    async with AsyncSession(engine) as db_session:
+        query = select(User).where(User.email == email)
+        user = (await db_session.execute(query)).scalars().first()
+        
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+            
+        otp_query = select(OTP).where(
+            OTP.user_id == user.id,
+            OTP.code == otp_code,
+            OTP.purpose == "forgot_password",
+            OTP.expires_at > datetime.now(timezone.utc)
+        )
+        otp_record = (await db_session.execute(otp_query)).scalars().first()
+        
+        if not otp_record:
+            raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+            
+        user.password_hash = _hash_password(new_password)
+        
+        await db_session.execute(delete(Session).where(Session.user_id == user.id))
+        await db_session.delete(otp_record)
+        await db_session.commit()
+        
+        return {"status": "success", "message": "Password successfully reset"}
 
 # Bouncers for routers to add as depedencies
 def get_current_user(request: Request) -> dict:
