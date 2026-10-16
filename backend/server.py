@@ -1,4 +1,5 @@
 import os
+import config.env as env
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -10,11 +11,8 @@ from routes.events_stream import router as events_router
 from routes.match_control import router as match_control_router
 from routes.auth_router import router as auth_router
 from routes.account_router import router as account_router
-from dotenv import load_dotenv
 
 app = FastAPI()
-
-load_dotenv()
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
