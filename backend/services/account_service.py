@@ -18,12 +18,12 @@ from services.auth_service import (
 )
 
 async def _rotate_sessions(db_session: AsyncSession, user: User, response: Response):
-    """Deletes all old sessions for the user and issues a fresh session/cookies."""
+    """Rotate the user's sessions and set fresh authentication cookies."""
 
-    # Invalidates all existing sessions to force logout on other devices
+    # Revoke existing sessions so account changes sign out other devices.
     await db_session.execute(delete(Session).where(Session.user_id == user.id))
     
-    # Generates new tokens with the updated user claims
+    # Issue replacement tokens with the updated user claims.
     access_token = _create_token(user, "access", auth_settings.access_ttl)
     refresh_token = _create_token(user, "refresh", auth_settings.refresh_ttl)
     session_token = secrets.token_urlsafe(64)
@@ -36,7 +36,7 @@ async def _rotate_sessions(db_session: AsyncSession, user: User, response: Respo
     )
     db_session.add(new_session)
     
-    # Attaches the new cookies to the response
+    # Set the replacement cookies on the response.
     _set_auth_cookies(response, access_token, refresh_token)
 
 async def update_username(user_id: int, new_username: str, response: Response) -> dict:
@@ -79,6 +79,7 @@ async def update_email(user_id: int, new_email: str, response: Response) -> dict
             raise HTTPException(status_code=400, detail="Email is already in use")
             
         user.email = new_email
+        user.email_verified = False
         await db_session.flush()
         
         await _rotate_sessions(db_session, user, response)

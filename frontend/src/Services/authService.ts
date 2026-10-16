@@ -2,7 +2,7 @@ import axios from "axios";
 import { Session, Ticket } from "../types";
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
-const TICKET_MARGIN_MS = 20_000; // Refresh before requesting a ticket if the token expires within 20 seconds.
+const TICKET_MARGIN_MS = 20_000;
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
@@ -26,7 +26,14 @@ type Options = {
   cookieAuth?: boolean;
 };
 
-async function request<T>(method: "GET" | "POST", path: string, data?: unknown, options: Options = {}): Promise<T> {
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+async function request<T>(
+  method: HttpMethod,
+  path: string,
+  data?: unknown,
+  options: Options = {}
+): Promise<T> {
   const headers: Record<string, string> = {};
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   if (options.cookieAuth) headers["X-Requested-With"] = "tactica";
@@ -38,7 +45,7 @@ async function request<T>(method: "GET" | "POST", path: string, data?: unknown, 
       data,
       headers,
     });
-    
+
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -46,10 +53,16 @@ async function request<T>(method: "GET" | "POST", path: string, data?: unknown, 
         throw new ApiError(0, "Can't reach the server. Is the backend running?");
       }
       const detail = error.response.data?.detail;
-      throw new ApiError(
-        error.response.status,
-        typeof detail === "string" ? detail : `Request failed (${error.response.status})`
-      );
+      let message = `Request failed (${error.response.status})`;
+
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0 && detail[0]?.msg) {
+        // Pydantic returns field errors as a list; surface the first message.
+        message = String(detail[0].msg).replace(/^Value error,\s*/i, "");
+      }
+
+      throw new ApiError(error.response.status, message);
     }
     throw error;
   }
@@ -76,16 +89,29 @@ export function clearSession(): void {
   epoch += 1;
 }
 
-export async function login(username: string, email: string, password: string): Promise<Session> {
-  return apply(await request<Session>("POST", "/api/auth/login", { username, email, password }));
+export async function login(usernameOrEmail: string, password: string): Promise<Session> {
+  return apply(
+    await request<Session>("POST", "/api/auth/login", {
+      username_or_email: usernameOrEmail,
+      password,
+    })
+  );
 }
 
-export async function register(username: string, email: string, password: string): Promise<Session> {
-  return apply(await request<Session>("POST", "/api/auth/register", {
-    username,
-    email,
-    password,
-  }));
+export async function register(
+  username: string,
+  email: string,
+  password: string,
+  preferences?: { favorite_team?: string | null; language?: string; persona?: string }
+): Promise<Session> {
+  return apply(
+    await request<Session>("POST", "/api/auth/register", {
+      username,
+      email,
+      password,
+      ...(preferences ? { preferences } : {}),
+    })
+  );
 }
 
 const oneTabAtATime = <T>(fn: () => Promise<T>): Promise<T> =>
@@ -96,8 +122,10 @@ export function refreshSession(): Promise<Session> {
     const startedAt = epoch;
 
     try {
-      const s = await oneTabAtATime(() => request<Session>("POST", "/api/auth/refresh", undefined, { cookieAuth: true }));
-      if (epoch !== startedAt) throw new ApiError(401, "Signed out"); // Prevent a pending refresh from restoring a signed-out session.
+      const s = await oneTabAtATime(() =>
+        request<Session>("POST", "/api/auth/refresh", undefined, { cookieAuth: true })
+      );
+      if (epoch !== startedAt) throw new ApiError(401, "Signed out");
       return apply(s);
     } finally {
       inflight = null;
@@ -122,10 +150,18 @@ async function validToken(): Promise<string> {
 
 export async function fetchWsTicket(): Promise<string> {
   try {
-    return (await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, { token: await validToken() })).ticket;
+    return (
+      await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, {
+        token: await validToken(),
+      })
+    ).ticket;
   } catch (e) {
     if (!isUnauthorized(e)) throw e;
     await refreshSession();
-    return (await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, { token: accessToken as string })).ticket;
+    return (
+      await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, {
+        token: accessToken as string,
+      })
+    ).ticket;
   }
 }

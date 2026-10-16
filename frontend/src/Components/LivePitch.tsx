@@ -3,15 +3,43 @@ import type { MatchEvent } from "../types";
 
 interface LivePitchProps {
   events: MatchEvent[];
-  colorOf: (team: string) => string;
+  colorOf?: (team: string) => string;
 }
 
 export function LivePitch({ events, colorOf }: LivePitchProps) {
   const visibleEvents = useMemo(() => events.slice(-6), [events]);
 
-  // Event coordinates are percentages; convert them to the pitch's 105-by-68 SVG units.
-  const sx = (val: number) => (val / 100) * 105;
-  const sy = (val: number) => (val / 100) * 68;
+  const getTeamColor = (team: string) => {
+    if (colorOf) return colorOf(team);
+    return team === "Chelsea" ? "#3b82f6" : "#ef4444";
+  };
+
+  // Events use the attacking team's coordinate space; defensive events retain the
+  // previous attacker's orientation even after possession changes.
+  const isFlippedCoordinateSpace = (event: MatchEvent) => {
+    const isAwayTeam = getTeamColor(event.team) === "#3b82f6" || event.team === "Chelsea";
+    const isDefensiveOrTurnover =
+      event.type === "save" ||
+      event.type === "tackle" ||
+      event.type === "foul" ||
+      event.type === "card" ||
+      event.type === "possession_change";
+
+    return isDefensiveOrTurnover ? !isAwayTeam : isAwayTeam;
+  };
+
+  // Keep event coordinates inside the painted pitch boundary.
+  const sx = (val: number, flip: boolean) => {
+    const normalized = flip ? 100 - val : val;
+    const clamped = Math.max(0, Math.min(100, normalized));
+    return 2.5 + (clamped / 100) * 100;
+  };
+
+  const sy = (val: number, flip: boolean) => {
+    const normalized = flip ? 100 - val : val;
+    const clamped = Math.max(0, Math.min(100, normalized));
+    return 2.5 + (clamped / 100) * 63;
+  };
 
   return (
     <div
@@ -19,8 +47,11 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
       aria-label="Pitch showing the six most recent live match events"
       className="w-full max-w-[700px] mx-auto relative bg-emerald-900/40 border-2 border-slate-600 rounded-xl overflow-hidden aspect-[105/68] shadow-2xl"
     >
-      
-      <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 105 68">
+      <svg
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        viewBox="0 0 105 68"
+      >
         <rect x="1" y="1" width="103" height="66" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
         <line x1="52.5" y1="1" x2="52.5" y2="67" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
         <circle cx="52.5" cy="34" r="9.15" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
@@ -30,48 +61,76 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         <rect x="98.5" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
       </svg>
 
-      <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 105 68">
+      <svg
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full pointer-events-none z-10"
+        viewBox="0 0 105 68"
+      >
         <defs>
-          <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker
+            id="arrow-red"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
           </marker>
-          <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker
+            id="arrow-blue"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
           </marker>
         </defs>
 
         {visibleEvents.map((event, index) => {
-          const color = colorOf(event.team);
-          const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length; 
+          const color = getTeamColor(event.team);
+          const flip = isFlippedCoordinateSpace(event);
+          const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length;
           const markerId = color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
 
-          if ('end_x' in event) {
+          const x = sx(event.x ?? 50, flip);
+          const y = sy(event.y ?? 50, flip);
+
+          if ("end_x" in event) {
+            const endX = sx(event.end_x, flip);
+            const endY = sy(event.end_y, flip);
             const isIntercepted = event.outcome === "intercepted";
             return (
               <g key={event.id} opacity={opacity}>
                 <line
-                  x1={sx(event.x)} y1={sy(event.y)}
-                  x2={sx(event.end_x)} y2={sy(event.end_y)}
+                  x1={x}
+                  y1={y}
+                  x2={endX}
+                  y2={endY}
                   stroke={color}
                   strokeWidth="0.6"
                   strokeDasharray={isIntercepted ? "1.5, 1.5" : "none"}
                   markerEnd={markerId}
                 />
-                <circle cx={sx(event.x)} cy={sy(event.y)} r="0.6" fill={color} />
+                <circle cx={x} cy={y} r="0.6" fill={color} />
               </g>
             );
           }
 
-          if ('xg' in event) {
+          if ("xg" in event) {
             const radius = Math.max(1, event.xg * 5);
             const isGoal = event.outcome === "goal";
             return (
               <g key={event.id} opacity={opacity}>
-                <circle cx={sx(event.x)} cy={sy(event.y)} r={radius} fill="none" stroke={color} strokeWidth="0.4" />
-                <circle cx={sx(event.x)} cy={sy(event.y)} r={radius * 0.4} fill={color} />
-                
+                <circle cx={x} cy={y} r={radius} fill="none" stroke={color} strokeWidth="0.4" />
+                <circle cx={x} cy={y} r={radius * 0.4} fill={color} />
+
                 {isGoal && (
-                  <circle cx={sx(event.x)} cy={sy(event.y)} r={radius + 1.5} fill="none" stroke="#fbbf24" strokeWidth="0.5">
+                  <circle cx={x} cy={y} r={radius + 1.5} fill="none" stroke="#fbbf24" strokeWidth="0.5">
                     <animate attributeName="r" values={`${radius};${radius + 6}`} dur="1.5s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite" />
                   </circle>
@@ -82,14 +141,21 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
 
           if (event.type === "card") {
             const cardColor = event.card_color === "red" ? "#ef4444" : "#eab308";
-            const cx = sx(event.x);
-            const cy = sy(event.y);
-            
+
             return (
               <g key={event.id} opacity={opacity}>
-                <rect x={cx - 1.5} y={cy - 2} width="3" height="4" fill={cardColor} stroke="#ffffff" strokeWidth="0.4" rx="0.5" />
+                <rect
+                  x={x - 1.5}
+                  y={y - 2}
+                  width="3"
+                  height="4"
+                  fill={cardColor}
+                  stroke="#ffffff"
+                  strokeWidth="0.4"
+                  rx="0.5"
+                />
                 {opacity > 0.8 && (
-                  <circle cx={cx} cy={cy} r="2" fill="none" stroke={cardColor} strokeWidth="0.5">
+                  <circle cx={x} cy={y} r="2" fill="none" stroke={cardColor} strokeWidth="0.5">
                     <animate attributeName="r" values="2;10" dur="1.2s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.8;0" dur="1.2s" repeatCount="indefinite" />
                   </circle>
@@ -101,22 +167,29 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
           if (event.type === "corner" || event.type === "penalty") {
             return (
               <g key={event.id} opacity={opacity}>
-                <circle cx={sx(event.x)} cy={sy(event.y)} r="1.5" fill="none" stroke={color} strokeWidth="0.8" strokeDasharray="1,1" />
-                <circle cx={sx(event.x)} cy={sy(event.y)} r="0.5" fill="#fff" />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="1.5"
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="0.8"
+                  strokeDasharray="1,1"
+                />
+                <circle cx={x} cy={y} r="0.5" fill="#fff" />
               </g>
             );
           }
 
-          const safeX = sx(event.x ?? 50);
-          const safeY = sy(event.y ?? 50);
-          
           return (
             <g key={event.id} opacity={opacity}>
-              <rect 
-                x={safeX - 0.75} y={safeY - 0.75} 
-                width="1.5" height="1.5" 
-                fill={color} 
-                transform={`rotate(45 ${safeX} ${safeY})`} 
+              <rect
+                x={x - 0.75}
+                y={y - 0.75}
+                width="1.5"
+                height="1.5"
+                fill={color}
+                transform={`rotate(45 ${x} ${y})`}
               />
             </g>
           );

@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { useAuth } from "../Providers/AuthProvider";
 import { Button } from "@/Components/button";
 import { Input } from "@/Components/input";
@@ -7,7 +8,7 @@ import { Label } from "@/Components/label";
 import { AlertCircle, Activity, Radio } from "lucide-react";
 
 const BASE_INPUT_CLASSES =
-  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white text-xl border border-slate-700 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
+  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white text-2xl border border-slate-700 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
 
 const ERROR_INPUT_CLASSES =
   "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
@@ -51,8 +52,8 @@ export function SignUpPage() {
     if (!username.trim()) {
       errors.username = "Name is required.";
       isValid = false;
-    } else if (!/^[A-Za-z0-9_.-]{3,64}$/.test(username.trim())) {
-      errors.username = "Name must be 3-64 characters (letters, digits, _, ., -).";
+    } else if (username.trim().length < 3 || username.trim().length > 64) {
+      errors.username = "Name must be between 3 and 64 characters.";
       isValid = false;
     }
 
@@ -64,11 +65,21 @@ export function SignUpPage() {
       isValid = false;
     }
 
+    // Keep these password rules aligned with backend registration validation.
     if (!password) {
       errors.password = "Password is required.";
       isValid = false;
-    } else if (password.length < 12) {
-      errors.password = "Password must be at least 12 characters.";
+    } else if (password.length < 8) {
+      errors.password = "Password must be at least 8 characters.";
+      isValid = false;
+    } else if (!/[A-Z]/.test(password)) {
+      errors.password = "Password must contain at least one capital letter.";
+      isValid = false;
+    } else if (!/[!@#$%^&*]/.test(password)) {
+      errors.password = "Password must contain at least one special character (!@#$%^&*).";
+      isValid = false;
+    } else if (/[()]/.test(password)) {
+      errors.password = "Password must not contain parentheses.";
       isValid = false;
     }
 
@@ -92,13 +103,12 @@ export function SignUpPage() {
       await register(username.trim(), email.trim(), password);
       navigate("/Home");
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error
+      const errorMessage = axios.isAxiosError(err)
+        ? err.response?.data?.detail ?? err.message
+        : err instanceof Error
           ? err.message
-          : typeof err === "string"
-            ? err
-            : "Sign up failed";
-      setFormError(errorMessage);
+          : "Sign up failed";
+      setFormError(typeof errorMessage === "string" ? errorMessage : "Sign up failed");
     } finally {
       setBusy(false);
     }
@@ -106,8 +116,6 @@ export function SignUpPage() {
 
   return (
     <div className="flex flex-col min-[860px]:flex-row min-h-screen w-full bg-[#070d24] text-slate-50">
-      
-      {/* Left Brand Section */}
       <section className="flex-none min-[860px]:flex-1 flex flex-col items-center justify-center bg-[#020617] border-b min-[860px]:border-b-0 min-[860px]:border-r border-slate-800 px-8 py-16 min-[860px]:p-8">
         <h1 className="font-[family-name:var(--cond)] text-[4rem] min-[860px]:text-[6rem] tracking-[0.05em] mb-12 text-white [text-shadow:0_0_40px_rgba(255,255,255,0.05)] leading-none">
           TACTICA
@@ -136,7 +144,6 @@ export function SignUpPage() {
         </div>
       </section>
 
-      {/* Right Form Section */}
       <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
         <form className="w-full max-w-[560px] flex flex-col gap-6" onSubmit={submit} noValidate>
           <div>
@@ -158,8 +165,6 @@ export function SignUpPage() {
             <Input
               id="username"
               type="text"
-              aria-invalid={Boolean(fieldErrors.username)}
-              aria-describedby={fieldErrors.username ? "username-error" : undefined}
               value={username}
               onChange={(e) => handleInput("username", e.target.value)}
               placeholder="Enter your name"
@@ -168,7 +173,7 @@ export function SignUpPage() {
               autoFocus
             />
             {fieldErrors.username && (
-              <span id="username-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+              <span className="text-red-500 text-base mt-1 font-medium">
                 {fieldErrors.username}
               </span>
             )}
@@ -184,8 +189,6 @@ export function SignUpPage() {
             <Input
               id="email"
               type="email"
-              aria-invalid={Boolean(fieldErrors.email)}
-              aria-describedby={fieldErrors.email ? "email-error" : undefined}
               value={email}
               onChange={(e) => handleInput("email", e.target.value)}
               placeholder="Enter your email"
@@ -193,7 +196,7 @@ export function SignUpPage() {
               className={`${BASE_INPUT_CLASSES} ${fieldErrors.email ? ERROR_INPUT_CLASSES : ""}`}
             />
             {fieldErrors.email && (
-              <span id="email-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+              <span className="text-red-500 text-base mt-1 font-medium">
                 {fieldErrors.email}
               </span>
             )}
@@ -209,16 +212,14 @@ export function SignUpPage() {
             <Input
               id="password"
               type="password"
-              aria-invalid={Boolean(fieldErrors.password)}
-              aria-describedby={fieldErrors.password ? "password-error" : undefined}
               value={password}
               onChange={(e) => handleInput("password", e.target.value)}
-              placeholder="Create a password"
+              placeholder="Min 8 chars, 1 uppercase, 1 symbol (!@#$%^&*)"
               autoComplete="new-password"
               className={`${BASE_INPUT_CLASSES} ${fieldErrors.password ? ERROR_INPUT_CLASSES : ""}`}
             />
             {fieldErrors.password && (
-              <span id="password-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+              <span className="text-red-500 text-base mt-1 font-medium">
                 {fieldErrors.password}
               </span>
             )}
@@ -234,8 +235,6 @@ export function SignUpPage() {
             <Input
               id="confirmPassword"
               type="password"
-              aria-invalid={Boolean(fieldErrors.confirmPassword)}
-              aria-describedby={fieldErrors.confirmPassword ? "confirm-password-error" : undefined}
               value={confirmPassword}
               onChange={(e) => handleInput("confirmPassword", e.target.value)}
               placeholder="Confirm your password"
@@ -243,14 +242,14 @@ export function SignUpPage() {
               className={`${BASE_INPUT_CLASSES} ${fieldErrors.confirmPassword ? ERROR_INPUT_CLASSES : ""}`}
             />
             {fieldErrors.confirmPassword && (
-              <span id="confirm-password-error" className="text-red-500 text-base mt-1 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+              <span className="text-red-500 text-base mt-1 font-medium">
                 {fieldErrors.confirmPassword}
               </span>
             )}
           </div>
 
           {formError && (
-            <div role="alert" className="mt-2 p-4 rounded-xl flex items-center gap-3 bg-red-500/10 text-red-500 border border-red-500">
+            <div className="mt-2 p-4 rounded-xl flex items-center gap-3 bg-red-500/10 text-red-500 border border-red-500">
               <AlertCircle className="h-6 w-6 shrink-0" />
               <span className="font-medium text-lg">{formError}</span>
             </div>

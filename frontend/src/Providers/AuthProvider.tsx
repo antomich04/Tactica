@@ -1,4 +1,13 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as auth from "../Services/authService";
 import { AuthStatus, Session, User } from "../types";
 
@@ -10,10 +19,11 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   notice: string;
-  login: (username: string, email: string, password: string) => Promise<void>;
+  login: (usernameOrEmail: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   getWsTicket: () => Promise<string>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,12 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => void renewRef.current(), Math.max(0, ms));
   }, []);
 
-  const signedIn = useCallback((s: Session) => {
-    setUser(s.user);
-    setStatus("authenticated");
-    setNotice("");
-    schedule(s.expires_in * 1000 - RENEW_BEFORE_EXPIRY_MS);
-  }, [schedule]);
+  const signedIn = useCallback(
+    (s: Session) => {
+      setUser(s.user);
+      setStatus("authenticated");
+      setNotice("");
+      schedule(s.expires_in * 1000 - RENEW_BEFORE_EXPIRY_MS);
+    },
+    [schedule]
+  );
 
   const signedOut = useCallback((message = "") => {
     window.clearTimeout(timer.current);
@@ -51,20 +64,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNotice(message);
   }, []);
 
-  const renew = useCallback(async (firstLoad = false) => {
-    const started = auth.sessionEpoch();
+  const renew = useCallback(
+    async (firstLoad = false) => {
+      const started = auth.sessionEpoch();
 
-    try {
-      const s = await auth.refreshSession();
-      if (started === auth.sessionEpoch()) signedIn(s);
-    } catch (e) {
-      if (started !== auth.sessionEpoch()) return; // Do not restore a session after a concurrent sign-out.
+      try {
+        const s = await auth.refreshSession();
+        if (started === auth.sessionEpoch()) signedIn(s);
+      } catch (e) {
+        if (started !== auth.sessionEpoch()) return;
 
-      if (auth.isUnauthorized(e)) signedOut(firstLoad ? "" : "Your session expired. Please sign in again.");
-      else if (firstLoad) signedOut(e instanceof Error ? e.message : "Can't reach the server.");
-      else schedule(RETRY_MS); // Keep the session active while retrying a transient network failure.
-    }
-  }, [signedIn, signedOut, schedule]);
+        if (auth.isUnauthorized(e))
+          signedOut(firstLoad ? "" : "Your session expired. Please sign in again.");
+        else if (firstLoad) signedOut(e instanceof Error ? e.message : "Can't reach the server.");
+        else schedule(RETRY_MS);
+      }
+    },
+    [signedIn, signedOut, schedule]
+  );
 
   useEffect(() => {
     renewRef.current = () => renew();
@@ -79,7 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A suspended tab may miss its timer, so check expiry again when it becomes visible.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && auth.hasSession() && auth.msUntilExpiry() < RENEW_BEFORE_EXPIRY_MS) {
+      if (
+        document.visibilityState === "visible" &&
+        auth.hasSession() &&
+        auth.msUntilExpiry() < RENEW_BEFORE_EXPIRY_MS
+      ) {
         void renewRef.current();
       }
     };
@@ -88,13 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
-  const login = useCallback(async (username: string, email: string, password: string) => {
-    signedIn(await auth.login(username, email, password)); 
-  }, [signedIn]);
+  const login = useCallback(
+    async (usernameOrEmail: string, password: string) => {
+      signedIn(await auth.login(usernameOrEmail, password));
+    },
+    [signedIn]
+  );
 
-  const register = useCallback(async (username: string, email: string, password: string) => {
-    signedIn(await auth.register(username, email, password)); 
-  }, [signedIn]);
+  const register = useCallback(
+    async (username: string, email: string, password: string) => {
+      signedIn(await auth.register(username, email, password));
+    },
+    [signedIn]
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -104,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedOut(
         `Signed out locally, but the server could not revoke the session: ${
           e instanceof Error ? e.message : "Unknown error"
-        }`,
+        }`
       );
     }
   }, [signedOut]);
@@ -118,9 +145,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [signedOut]);
 
+  const refreshUser = useCallback(async () => {
+    await renew(false);
+  }, [renew]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, notice, login, register, logout, getWsTicket }),
-    [status, user, notice, login, register, logout, getWsTicket],
+    () => ({ status, user, notice, login, register, logout, getWsTicket, refreshUser }),
+    [status, user, notice, login, register, logout, getWsTicket, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

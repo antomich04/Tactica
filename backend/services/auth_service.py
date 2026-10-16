@@ -104,7 +104,7 @@ async def register_user(data: dict, response: Response) -> dict:
         
         await db_session.flush()
 
-        # Auto-logins the user immediately after creation
+        # Create a session immediately after registration.
         access_token = _create_token(new_user, "access", auth_settings.access_ttl)
         refresh_token = _create_token(new_user, "refresh", auth_settings.refresh_ttl)
         session_token = secrets.token_urlsafe(64)
@@ -210,7 +210,7 @@ async def refresh_user_session(request: Request, response: Response) -> dict:
 async def logout_user(request: Request, response: Response) -> dict:
     refresh_token = request.cookies.get("refresh_token")
     
-    # Clears cookies even if DB cleanup fails
+    # Clear cookies before database cleanup so logout still takes effect if cleanup fails.
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
 
@@ -279,7 +279,7 @@ async def reset_password(email: str, otp_code: str, new_password: str) -> dict:
         
         return {"status": "success", "message": "Password successfully reset"}
 
-# Bouncers for routers to add as depedencies
+# FastAPI dependencies for authenticated REST and WebSocket routes.
 def get_current_user(request: Request) -> dict:
     """Validates the JWT for standard REST endpoints using a bearer token or access cookie."""
     authorization = request.headers.get("Authorization", "")
@@ -317,6 +317,22 @@ def create_ws_ticket(user: dict) -> dict:
         algorithm="HS256"
     )
     return {"ticket": ticket, "expires_in": auth_settings.ws_ticket_ttl}
+
+def _session_response(user: User, access_token: str, message: str) -> dict:
+    return {
+        "status": "success",
+        "message": message,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": auth_settings.access_ttl,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "email_verified": bool(user.email_verified),
+        }
+    }
 
 def get_ws_user(websocket: WebSocket) -> dict:
     """Validates a short-lived WebSocket ticket and the connection origin."""

@@ -1,4 +1,4 @@
-import type { Envelope, MatchEvent, MatchMetrics, Overlay } from "../types";
+import type { Envelope, MatchEvent, MatchMetrics, MomentumPoint, Overlay } from "../types";
 
 export const clock = (seconds: number) => {
   const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -69,7 +69,8 @@ function isMatchEvent(value: unknown): value is MatchEvent {
     case "foul":
     case "substitution":
     case "injury":
-      return value.details === undefined || typeof value.details === "string";
+      // Optional event details may arrive as null from the backend.
+      return value.details === undefined || value.details === null || typeof value.details === "string";
     default:
       return false;
   }
@@ -94,19 +95,40 @@ function isOverlay(value: unknown): value is Overlay {
   );
 }
 
-function parseMetrics(value: unknown): MatchMetrics | undefined {
+function parseMomentum(value: unknown): MomentumPoint | undefined {
   if (!isRecord(value)) return undefined;
+  if (isFiniteNumber(value.timestamp) && isFiniteNumber(value.score)) {
+    return {
+      timestamp: value.timestamp,
+      score: value.score,
+    };
+  }
+  return undefined;
+}
 
+function parseMetrics(value: unknown, momentumValue?: unknown): MatchMetrics | undefined {
   const metrics: MatchMetrics = {};
-  if (isFiniteNumber(value.chaos_index) && value.chaos_index >= 0 && value.chaos_index <= 100) {
-    metrics.chaos_index = value.chaos_index;
+
+  if (isRecord(value)) {
+    if (isFiniteNumber(value.chaos_index) && value.chaos_index >= 0 && value.chaos_index <= 100) {
+      metrics.chaos_index = value.chaos_index;
+    }
+    if (isFiniteNumber(value.control_index) && value.control_index >= 0 && value.control_index <= 100) {
+      metrics.control_index = value.control_index;
+    }
+    if (typeof value.controlling_team === "string" || value.controlling_team === null) {
+      metrics.controlling_team = value.controlling_team;
+    }
+    if (isFiniteNumber(value.recent_events_count)) {
+      metrics.recent_events_count = value.recent_events_count;
+    }
   }
-  if (isFiniteNumber(value.control_index) && value.control_index >= 0 && value.control_index <= 100) {
-    metrics.control_index = value.control_index;
+
+  const momentum = parseMomentum(momentumValue);
+  if (momentum) {
+    metrics.momentum = momentum;
   }
-  if (typeof value.controlling_team === "string") {
-    metrics.controlling_team = value.controlling_team;
-  }
+
   return Object.keys(metrics).length > 0 ? metrics : undefined;
 }
 
@@ -121,21 +143,26 @@ export function parseMessage(raw: string): Envelope | null {
 
   if (isRecord(message)) {
     if (message.kind === "event" && isMatchEvent(message.data)) {
+      const momentum = parseMomentum(message.momentum);
       return {
         kind: "event",
         data: message.data,
-        metrics: parseMetrics(message.metrics),
+        metrics: parseMetrics(message.metrics, message.momentum),
+        momentum,
       };
     }
     if (message.kind === "overlay" && isOverlay(message.data)) {
       return { kind: "overlay", data: message.data };
     }
 
+    // Accept the broadcaster's flat event payload for compatibility.
     if (isMatchEvent(message.event)) {
+      const momentum = parseMomentum(message.momentum);
       return {
         kind: "event",
         data: message.event,
-        metrics: parseMetrics(message.metrics),
+        metrics: parseMetrics(message.metrics, message.momentum),
+        momentum,
       };
     }
 

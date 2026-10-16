@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -24,7 +24,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_DEV_URL", "").rstrip("/")],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
@@ -36,5 +36,5 @@ app.include_router(settings_router)
 
 @app.get("/health")
 @limiter.limit("5/minute")
-def health_check():
+def health_check(request: Request):
     return {"status": "healthy"}
