@@ -1,8 +1,10 @@
+import logging
 import os
 from azure.communication.email import EmailClient
-from azure.core.exceptions import HttpResponseError
 
-def send_otp_email(email_to: str, otp_code: str, purpose: str):
+logger = logging.getLogger(__name__)
+
+def send_otp_email(email_to: str, otp_code: str, purpose: str) -> None:
     connection_string = os.getenv("MAIL_SERVER_ENDPOINT")
     sender_address = os.getenv("DONOTREPLY_AZURE_EMAIL")
     
@@ -20,6 +22,5 @@ def send_otp_email(email_to: str, otp_code: str, purpose: str):
         
         email_client.begin_send(message)
         
-        
-    except (HttpResponseError, Exception):
-        pass
+    except Exception:
+        logger.exception("Failed to send '%s' OTP email", purpose)

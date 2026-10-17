@@ -7,7 +7,8 @@ router = APIRouter(prefix="/api")
 @router.websocket("/overlays-stream")
 async def stream_overlays(websocket: WebSocket, user: dict = Depends(get_ws_user)):
     await websocket.accept()
-    await broadcaster.register_overlay_client(websocket)
+    # Passes the JWT user payload so the broadcaster updates active user context
+    await broadcaster.register_overlay_client(websocket, user)
     
     try:
         while True:
