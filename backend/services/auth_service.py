@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 from config.database_client import get_db_client
+import uuid
 from config.auth_settings import auth_settings
 from config.db_retry_mechanism import with_db_retry
 from models.User import User, UserPreference
@@ -62,6 +63,7 @@ def _verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
     payload = {
+        "jti": str(uuid.uuid4()),  #This guarantees 100% uniqueness
         "sub": str(user.id),
         "username": user.username,
         "email": user.email,
@@ -118,7 +120,7 @@ async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tup
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
-        
+        session_data = _session_response(new_user, access_token, "User registered and logged in")
         await db_session.commit()
         return access_token, refresh_token
 
@@ -168,6 +170,7 @@ async def _authenticate_user_db(
             expires_at=now + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
+        session_data = _session_response(user, access_token, "Successfully logged in")
         await db_session.commit()
         return access_token, refresh_token
 
@@ -206,7 +209,8 @@ async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, st
         
         db_session_record.refresh_token = new_refresh_token
         db_session_record.expires_at = now + timedelta(seconds=auth_settings.refresh_ttl)
-        
+
+        session_data = _session_response(user, new_access_token, "Session refreshed")
         await db_session.commit()
         return new_access_token, new_refresh_token
 
@@ -345,8 +349,10 @@ async def reset_password(email: str, otp_code: str, new_password: str) -> None:
 
 # Bouncers for routers to add as dependencies
 def get_current_user(request: Request) -> dict:
-    """Validates the JWT for standard REST endpoints using the access cookie."""
-    token = request.cookies.get("access_token")
+    """Validates the JWT for standard REST endpoints using a bearer token or access cookie."""
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, bearer_token = authorization.partition(" ")
+    token = bearer_token if scheme.lower() == "bearer" else request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
         
@@ -365,6 +371,37 @@ def get_current_user(request: Request) -> dict:
 
     return payload
 
+def create_ws_ticket(user: dict) -> dict:
+    ticket = jwt.encode(
+        {
+            "jti": secrets.token_urlsafe(16),
+            "sub": user["sub"],
+            "username": user.get("username"),
+            "role": user.get("role"),
+            "type": "ws-ticket",
+            "exp": datetime.now(timezone.utc) + timedelta(seconds=auth_settings.ws_ticket_ttl)
+        },
+        auth_settings.jwt_secret,
+        algorithm="HS256"
+    )
+    return {"ticket": ticket, "expires_in": auth_settings.ws_ticket_ttl}
+
+def _session_response(user: User, access_token: str, message: str) -> dict:
+    return {
+        "status": "success",
+        "message": message,
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": auth_settings.access_ttl,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "email_verified": bool(user.email_verified),
+        }
+    }
+
 def get_ws_user(websocket: WebSocket) -> dict:
     """Validates the JWT for WebSocket connections via cookies, with CSWSH protection."""
     allowed_origins = [os.getenv("FRONTEND_DEV_URL")]
@@ -372,9 +409,9 @@ def get_ws_user(websocket: WebSocket) -> dict:
     if origin not in allowed_origins:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized origin")
 
-    token = websocket.cookies.get("access_token")
+    token = websocket.query_params.get("ticket")
     if not token:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Missing token")
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Missing ticket")
     
     try:
         payload = jwt.decode(
@@ -384,9 +421,9 @@ def get_ws_user(websocket: WebSocket) -> dict:
             options={"require": ["exp", "sub", "type"]}
         )
     except jwt.PyJWTError:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid ticket")
 
-    if payload.get("type") != "access":
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token type")
+    if payload.get("type") != "ws-ticket":
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid ticket type")
 
     return payload

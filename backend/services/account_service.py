@@ -85,6 +85,7 @@ async def _update_email_db(user_id: int, new_email: str) -> tuple[str, str]:
             raise HTTPException(status_code=400, detail="Email is already in use")
             
         user.email = new_email
+        user.email_verified = False
         await db_session.flush()
         
         tokens = await _rotate_sessions(db_session, user)

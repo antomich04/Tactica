@@ -1,58 +1,77 @@
+import axios from "axios";
 import { Session, Ticket } from "../types";
 
 export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
-
-/** No API address means no backend: the app is an offline demo on the built-in fixture, with no login. */
-export const AUTH_ENABLED = API_URL !== "";
-
-const TICKET_MARGIN_MS = 20_000; // refresh first if the token has less life than this left
+const TICKET_MARGIN_MS = 20_000;
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string) {
     super(message);
   }
 }
 
-/** 401 means "not signed in" or "session over". Status 0 means the server could not be reached. */
 export const isUnauthorized = (e: unknown) => e instanceof ApiError && e.status === 401;
 
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+  headers: {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+});
+
 type Options = {
-  method?: "GET" | "POST";
-  body?: unknown;
   token?: string;
   cookieAuth?: boolean;
 };
 
-async function request<T>(path: string, { method = "GET", body, token, cookieAuth }: Options = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (cookieAuth) headers["X-Requested-With"] = "tactica";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-  let res: Response;
+async function request<T>(
+  method: HttpMethod,
+  path: string,
+  data?: unknown,
+  options: Options = {}
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options.token) headers.Authorization = `Bearer ${options.token}`;
+  if (options.cookieAuth) headers["X-Requested-With"] = "tactica";
+
   try {
-    res = await fetch(API_URL + path, {
+    const response = await api({
       method,
+      url: path,
+      data,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: "include", // lets the browser send and store the refresh cookie
     });
-  } catch {
-    throw new ApiError(0, "Can't reach the server. Is the backend running?");
-  }
 
-  if (!res.ok) {
-    const detail = (await res.json().catch(() => null))?.detail;
-    throw new ApiError(res.status, typeof detail === "string" ? detail : `Request failed (${res.status})`);
-  }
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (!error.response) {
+        throw new ApiError(0, "Can't reach the server. Is the backend running?");
+      }
+      const detail = error.response.data?.detail;
+      let message = `Request failed (${error.response.status})`;
 
-  return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
+      if (typeof detail === "string") {
+        message = detail;
+      } else if (Array.isArray(detail) && detail.length > 0 && detail[0]?.msg) {
+        // Pydantic returns field errors as a list; surface the first message.
+        message = String(detail[0].msg).replace(/^Value error,\s*/i, "");
+      }
+
+      throw new ApiError(error.response.status, message);
+    }
+    throw error;
+  }
 }
 
 let accessToken: string | null = null;
-let expiresAt = 0; // ms since epoch
+let expiresAt = 0; // Access-token expiry as a Unix timestamp in milliseconds.
 let inflight: Promise<Session> | null = null;
-let epoch = 0; // bumps on every sign-out: a refresh that finishes after a sign-out is discarded
+let epoch = 0; // Sign-out increments this to invalidate any refresh already in flight.
 
 export const hasSession = () => accessToken !== null;
 export const msUntilExpiry = () => expiresAt - Date.now();
@@ -70,21 +89,43 @@ export function clearSession(): void {
   epoch += 1;
 }
 
-export async function login(username: string, password: string): Promise<Session> {
-  return apply(await request<Session>("/api/auth/login", { method: "POST", body: { username, password } }));
+export async function login(usernameOrEmail: string, password: string): Promise<Session> {
+  return apply(
+    await request<Session>("POST", "/api/auth/login", {
+      username_or_email: usernameOrEmail,
+      password,
+    })
+  );
+}
+
+export async function register(
+  username: string,
+  email: string,
+  password: string,
+  preferences?: { favorite_team?: string | null; language?: string; persona?: string }
+): Promise<Session> {
+  return apply(
+    await request<Session>("POST", "/api/auth/register", {
+      username,
+      email,
+      password,
+      ...(preferences ? { preferences } : {}),
+    })
+  );
 }
 
 const oneTabAtATime = <T>(fn: () => Promise<T>): Promise<T> =>
   navigator.locks ? navigator.locks.request("tactica-refresh", fn) : fn();
 
-/** Trade the refresh cookie for a new access token. Calls made at the same moment share one request. */
 export function refreshSession(): Promise<Session> {
   inflight ??= (async () => {
     const startedAt = epoch;
 
     try {
-      const s = await oneTabAtATime(() => request<Session>("/api/auth/refresh", { method: "POST", cookieAuth: true }));
-      if (epoch !== startedAt) throw new ApiError(401, "Signed out"); // signed out while we waited
+      const s = await oneTabAtATime(() =>
+        request<Session>("POST", "/api/auth/refresh", undefined, { cookieAuth: true })
+      );
+      if (epoch !== startedAt) throw new ApiError(401, "Signed out");
       return apply(s);
     } finally {
       inflight = null;
@@ -96,9 +137,9 @@ export function refreshSession(): Promise<Session> {
 
 export async function logout(): Promise<void> {
   try {
-    await request<void>("/api/auth/logout", { method: "POST", cookieAuth: true });
+    await request<void>("POST", "/api/auth/logout", undefined, { cookieAuth: true });
   } finally {
-    clearSession(); // sign out locally even if the server could not be reached
+    clearSession();
   }
 }
 
@@ -107,13 +148,20 @@ async function validToken(): Promise<string> {
   return accessToken as string;
 }
 
-/** A short-lived, 30-second ticket for opening the WebSocket (browsers cannot send headers on a WebSocket). */
 export async function fetchWsTicket(): Promise<string> {
   try {
-    return (await request<Ticket>("/api/auth/ws-ticket", { method: "POST", token: await validToken() })).ticket;
+    return (
+      await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, {
+        token: await validToken(),
+      })
+    ).ticket;
   } catch (e) {
     if (!isUnauthorized(e)) throw e;
-    await refreshSession(); // the token was refused (revoked?): try once with a fresh one
-    return (await request<Ticket>("/api/auth/ws-ticket", { method: "POST", token: accessToken as string })).ticket;
+    await refreshSession();
+    return (
+      await request<Ticket>("POST", "/api/auth/ws-ticket", undefined, {
+        token: accessToken as string,
+      })
+    ).ticket;
   }
 }

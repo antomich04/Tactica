@@ -6,6 +6,8 @@ export type MatchEvent =
   | CardEvent
   | GoalEvent
   | PossessionChangeEvent
+  | SaveEvent
+  | SetPieceEvent
   | GenericMatchEvent;
 
 export type BaseEvent = {
@@ -22,44 +24,55 @@ export type PassEvent = BaseEvent & {
   type: "pass";
   end_x: number;
   end_y: number;
-  speed_kmh?: number;
+  speed_kmh?: number | null;
   distance: number;
   outcome: "completed" | "incomplete" | "intercepted" | "out_of_bounds";
-  difficulty_rating?: number;
-  receiver?: string;
+  difficulty_rating?: number | null;
+  receiver?: string | null;
 };
 
 export type ShotEvent = BaseEvent & {
   type: "shot";
-  speed_kmh?: number;
+  speed_kmh?: number | null;
   xg: number;
   outcome: "goal" | "saved" | "blocked" | "off_target" | "post";
-  distance?: number;
+  distance?: number | null;
+};
+
+export type SaveEvent = BaseEvent & {
+  type: "save";
+  shot_event_id?: string | null;
+  difficulty?: number | null;
+};
+
+export type SetPieceEvent = BaseEvent & {
+  type: "corner" | "goal_kick" | "penalty";
+  taker?: string | null;
 };
 
 export type TackleEvent = BaseEvent & {
   type: "tackle";
   outcome: "won" | "lost";
-  opponent_player?: string;
+  opponent_player?: string | null;
 };
 
 export type PressureEvent = BaseEvent & {
   type: "pressure";
   duration: number;
-  opponent_player?: string;
+  opponent_player?: string | null;
 };
 
 export type CardEvent = BaseEvent & {
   type: "card";
   card_color: "yellow" | "red";
-  reason?: string;
+  reason?: string | null;
 };
 
 export type GoalEvent = BaseEvent & {
   type: "goal";
-  shot_event_id?: string;
+  shot_event_id?: string | null;
   scorer: string;
-  assist_player?: string;
+  assist_player?: string | null;
 };
 
 export type PossessionChangeEvent = BaseEvent & {
@@ -69,8 +82,8 @@ export type PossessionChangeEvent = BaseEvent & {
 };
 
 export type GenericMatchEvent = BaseEvent & {
-  type: "foul" | "substitution";
-  details?: string;
+  type: "foul" | "substitution" | "injury";
+  details?: string | null;
 };
 
 export type Overlay = {
@@ -88,25 +101,42 @@ export type Overlay = {
   meta: Record<string, unknown>;
 };
 
+export type MomentumPoint = {
+  timestamp: number;
+  score: number; // Positive favors the home team; negative favors the away team.
+};
+
+export type MatchMetrics = {
+  chaos_index?: number;
+  control_index?: number;
+  controlling_team?: string | null;
+  recent_events_count?: number;
+  momentum?: MomentumPoint;
+};
+
 export type Envelope =
-  | { kind: "event"; data: MatchEvent }
+  | { kind: "event"; data: MatchEvent; metrics?: MatchMetrics; momentum?: MomentumPoint }
   | { kind: "overlay"; data: Overlay };
 
 export type Status = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
 
-// Sign-in. Keep in step with backend/auth/schemas.py.
+// These role values must match the backend authentication schema.
 export type Role = "viewer" | "producer";
 
 export type User = {
   id: number;
   username: string;
+  email: string;
   role: Role;
+  email_verified?: boolean;
 };
 
 export type Session = {
+  status?: string;
+  message?: string;
   access_token: string;
   token_type: "bearer";
-  /** Seconds until the access token expires (300 = 5 minutes). */
+  /** Access-token lifetime in seconds. */
   expires_in: number;
   user: User;
 };

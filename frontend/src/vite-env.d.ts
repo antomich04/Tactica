@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Backend address, e.g. http://localhost:8080. Setting it turns the login screen on. Empty = offline demo. */
+  /** Backend API base URL; omit trailing slashes. */
   readonly VITE_API_URL?: string;
 }
 
