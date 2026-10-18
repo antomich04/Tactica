@@ -28,6 +28,7 @@ export function SettingsPage() {
 
   const isEmailVerified = Boolean(user?.email_verified) || verifiedJustNow;
 
+  // Form states for modals
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [oldPassword, setOldPassword] = useState("");
@@ -35,11 +36,13 @@ export function SettingsPage() {
   const [verifyEmailInput, setVerifyEmailInput] = useState(user?.email ?? "");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Auto-dismiss the success toast after 4 seconds
   useEffect(() => {
     if (!toastMessage) return;
     const timer = window.setTimeout(() => setToastMessage(null), 4000);
@@ -50,6 +53,7 @@ export function SettingsPage() {
     setActiveModal(null);
     setFeedback(null);
     setOtpSent(false);
+    setOtpVerified(false);
     setOtpCode("");
     setNewUsername("");
     setNewEmail("");
@@ -73,6 +77,7 @@ export function SettingsPage() {
     return "Operation failed. Please try again.";
   };
 
+  // 1. PATCH /api/account/change-username
   const handleUpdateUsername = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -92,6 +97,7 @@ export function SettingsPage() {
     }
   };
 
+  // 2. PATCH /api/account/change-email
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -113,6 +119,7 @@ export function SettingsPage() {
     }
   };
 
+  // 3. PATCH /api/account/change-password
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -132,6 +139,7 @@ export function SettingsPage() {
     }
   };
 
+  // 4. POST /api/account/verify-email/request & /confirm
   const handleRequestVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -171,6 +179,7 @@ export function SettingsPage() {
     }
   };
 
+  // 5. 3-Step Forgot Password: /request -> /verify -> /reset
   const handleRequestForgotOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -193,6 +202,28 @@ export function SettingsPage() {
     }
   };
 
+  const handleVerifyForgotOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await axios.post(
+        `${API_URL}/api/auth/forgot-password/verify`,
+        { email: verifyEmailInput.trim(), otp: otpCode.trim() },
+        { withCredentials: true }
+      );
+      setOtpVerified(true);
+      setFeedback({
+        type: "success",
+        text: "OTP verified! Now enter your new password.",
+      });
+    } catch (err) {
+      setFeedback({ type: "error", text: extractError(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleConfirmForgotReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -207,6 +238,7 @@ export function SettingsPage() {
         },
         { withCredentials: true }
       );
+      // Since reset_password revokes sessions on the backend, re-authenticate seamlessly
       try {
         await axios.post(
           `${API_URL}/api/auth/login`,
@@ -215,7 +247,7 @@ export function SettingsPage() {
         );
         await refreshUser();
       } catch {
-        // Keep the successful reset even if automatic sign-in fails.
+        // Ignore if user chooses to log in manually later
       }
       finishWithToast(res.data.message || "Password successfully reset");
     } catch (err) {
@@ -225,6 +257,7 @@ export function SettingsPage() {
     }
   };
 
+  // 6. DELETE /api/account/delete-account
   const handleDeleteAccount = async () => {
     setBusy(true);
     setFeedback(null);
@@ -242,6 +275,7 @@ export function SettingsPage() {
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:py-14 lg:px-8 flex flex-col gap-8 sm:gap-10">
       
+      {/* Floating Success Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border-2 border-emerald-500 text-emerald-400 px-5 py-4 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.25)] animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
@@ -264,6 +298,7 @@ export function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-6 sm:gap-8">
+        {/* Profile & Identity */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">Profile & Identity</CardTitle>
@@ -290,6 +325,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* App Preferences */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">App Preferences</CardTitle>
@@ -300,6 +336,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Account Security */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">Account Security</CardTitle>
@@ -345,6 +382,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Broadcast Persona */}
         <Card className={`${BASE_CARD_CLASSES} border-emerald-500/50 shadow-[0_0_25px_rgba(16,185,129,0.08)]`}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-emerald-500 uppercase tracking-widest">Broadcast Persona</CardTitle>
@@ -405,6 +443,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Delete Account */}
         <Card className={`${BASE_CARD_CLASSES} border-red-500/40 mt-2 sm:mt-6`}>
           <CardContent className="p-4 sm:p-5">
             <Button
@@ -425,6 +464,7 @@ export function SettingsPage() {
         </Card>
       </div>
 
+      {/* Action Modal Overlay */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4">
           <div className="w-full max-w-md bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl">
@@ -546,7 +586,16 @@ export function SettingsPage() {
             )}
 
             {activeModal === "forgot_password" && (
-              <form onSubmit={otpSent ? handleConfirmForgotReset : handleRequestForgotOtp} className="flex flex-col gap-4">
+              <form
+                onSubmit={
+                  !otpSent
+                    ? handleRequestForgotOtp
+                    : !otpVerified
+                      ? handleVerifyForgotOtp
+                      : handleConfirmForgotReset
+                }
+                className="flex flex-col gap-4"
+              >
                 {!otpSent ? (
                   <>
                     <Input
@@ -561,7 +610,7 @@ export function SettingsPage() {
                       {busy ? "Sending..." : "Send Reset OTP"}
                     </Button>
                   </>
-                ) : (
+                ) : !otpVerified ? (
                   <>
                     <Input
                       type="text"
@@ -572,6 +621,12 @@ export function SettingsPage() {
                       className="h-12 bg-slate-950 text-white border-slate-700"
                       required
                     />
+                    <Button type="submit" disabled={busy} className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold">
+                      {busy ? "Verifying..." : "Verify OTP"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
                     <Input
                       type="password"
                       value={newPassword}

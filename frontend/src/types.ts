@@ -109,6 +109,8 @@ export type MomentumPoint = {
 export type MatchMetrics = {
   chaos_index?: number;
   control_index?: number;
+  home_control?: number;
+  away_control?: number;
   controlling_team?: string | null;
   recent_events_count?: number;
   momentum?: MomentumPoint;
