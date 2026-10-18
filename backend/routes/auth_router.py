@@ -16,7 +16,9 @@ from services.auth_service import (
     create_ws_ticket,
     request_password_reset as service_request_password_reset,
     verify_password_reset_otp as service_verify_password_reset_otp,
-    reset_password as service_reset_password
+    reset_password as service_reset_password,
+    get_current_user,
+    create_ws_ticket,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -47,7 +49,7 @@ async def refresh(request: Request, response: Response):
     return session_data
 
 @router.post("/ws-ticket")
-@limiter.limit("30/minute")
+@limiter.limit("10/minute")
 async def issue_ws_ticket(request: Request, user: dict = Depends(get_current_user)):
     return create_ws_ticket(user)
 

@@ -24,6 +24,17 @@ function validateBackendPassword(pw: string): string {
   return "";
 }
 
+function extractAxiosError(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) {
+      return String(detail[0].msg).replace(/^Value error,\s*/i, "");
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 export function LoginPage() {
   const { login, notice } = useAuth();
   const navigate = useNavigate();
@@ -34,7 +45,8 @@ export function LoginPage() {
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [mode, setMode] = useState<"login" | "forgot_request" | "forgot_reset">("login");
+  // 3-Step Forgot Password State: request -> verify -> reset
+  const [mode, setMode] = useState<"login" | "forgot_request" | "forgot_verify" | "forgot_reset">("login");
   const [resetEmail, setResetEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -68,17 +80,13 @@ export function LoginPage() {
       await login(identifier.trim(), password);
       navigate("/Home");
     } catch (err: unknown) {
-      const errorMessage = axios.isAxiosError(err)
-        ? err.response?.data?.detail ?? err.message
-        : err instanceof Error
-          ? err.message
-          : "Sign in failed";
-      setFormError(typeof errorMessage === "string" ? errorMessage : "Invalid credentials");
+      setFormError(extractAxiosError(err, "Sign in failed"));
     } finally {
       setBusy(false);
     }
   }
 
+  // Step 1: POST /api/auth/forgot-password/request
   async function handleRequestReset(event: FormEvent) {
     event.preventDefault();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail.trim())) {
@@ -88,26 +96,42 @@ export function LoginPage() {
     setBusy(true);
     setFormError("");
     try {
-      const res = await axios.post(`${API_URL}/api/auth/forgot-password/request`, {
+      await axios.post(`${API_URL}/api/auth/forgot-password/request`, {
         email: resetEmail.trim(),
       });
-      setResetSuccess(res.data.message || "OTP sent to your email.");
-      setMode("forgot_reset");
+      setMode("forgot_verify");
     } catch (err: unknown) {
-      setFormError(
-        axios.isAxiosError(err) ? err.response?.data?.detail ?? "Request failed" : "Request failed"
-      );
+      setFormError(extractAxiosError(err, "Request failed"));
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleConfirmReset(event: FormEvent) {
+  // Step 2: POST /api/auth/forgot-password/verify
+  async function handleVerifyOtp(event: FormEvent) {
     event.preventDefault();
     if (otp.trim().length !== 6) {
       setFormError("OTP must be 6 digits.");
       return;
     }
+    setBusy(true);
+    setFormError("");
+    try {
+      await axios.post(`${API_URL}/api/auth/forgot-password/verify`, {
+        email: resetEmail.trim(),
+        otp: otp.trim(),
+      });
+      setMode("forgot_reset");
+    } catch (err: unknown) {
+      setFormError(extractAxiosError(err, "Invalid or expired OTP."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Step 3: POST /api/auth/forgot-password/reset
+  async function handleConfirmReset(event: FormEvent) {
+    event.preventDefault();
     const pwErr = validateBackendPassword(newPassword);
     if (pwErr) {
       setFormError(pwErr);
@@ -125,9 +149,10 @@ export function LoginPage() {
       setResetSuccess("Password reset successfully! You can now log in.");
       setMode("login");
       setPassword("");
+      setOtp("");
+      setNewPassword("");
     } catch (err: unknown) {
-      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : "Reset failed";
-      setFormError(typeof detail === "string" ? detail : "Invalid or expired OTP.");
+      setFormError(extractAxiosError(err, "Reset failed."));
     } finally {
       setBusy(false);
     }
@@ -135,6 +160,7 @@ export function LoginPage() {
 
   return (
     <div className="flex flex-col min-[860px]:flex-row min-h-screen w-full bg-[#070d24] text-slate-50">
+      {/* Left Brand Section */}
       <section className="flex-none min-[860px]:flex-1 flex flex-col items-center justify-center bg-[#020617] border-b min-[860px]:border-b-0 min-[860px]:border-r border-slate-800 px-8 py-16 min-[860px]:p-8">
         <h1 className="font-[family-name:var(--cond)] text-[4rem] min-[860px]:text-[6rem] tracking-[0.05em] mb-12 text-white [text-shadow:0_0_40px_rgba(255,255,255,0.05)] leading-none">
           TACTICA
@@ -163,6 +189,7 @@ export function LoginPage() {
         </div>
       </section>
 
+      {/* Right Form Section */}
       <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
         {mode === "login" && (
           <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={submitLogin} noValidate>
@@ -346,14 +373,14 @@ export function LoginPage() {
           </form>
         )}
 
-        {mode === "forgot_reset" && (
-          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleConfirmReset} noValidate>
+        {mode === "forgot_verify" && (
+          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleVerifyOtp} noValidate>
             <div>
               <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
-                Enter OTP Code
+                Verify OTP
               </h2>
               <p className="text-slate-400 text-xl m-0">
-                We sent a 6-digit code to <span className="text-white font-semibold">{resetEmail}</span>.
+                Enter the 6-digit code sent to <span className="text-white font-semibold">{resetEmail}</span>.
               </p>
             </div>
 
@@ -376,6 +403,46 @@ export function LoginPage() {
               />
             </div>
 
+            {formError && (
+              <div className="p-4 rounded-xl flex items-center gap-3 bg-red-500/10 text-red-500 border border-red-500">
+                <AlertCircle className="h-6 w-6 shrink-0" />
+                <span className="font-medium text-lg">{formError}</span>
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xl h-16 rounded-xl"
+              disabled={busy}
+            >
+              {busy ? "Verifying..." : "Verify Code"}
+            </Button>
+
+            <Button
+              variant="link"
+              type="button"
+              className="text-lg text-slate-400 hover:text-white"
+              onClick={() => {
+                setFormError("");
+                setMode("login");
+              }}
+            >
+              Cancel
+            </Button>
+          </form>
+        )}
+
+        {mode === "forgot_reset" && (
+          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleConfirmReset} noValidate>
+            <div>
+              <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
+                New Password
+              </h2>
+              <p className="text-slate-400 text-xl m-0">
+                OTP verified! Choose a new password for <span className="text-white font-semibold">{resetEmail}</span>.
+              </p>
+            </div>
+
             <div className="flex flex-col gap-2.5">
               <Label htmlFor="newPassword" className="text-lg font-semibold text-white">
                 New Password
@@ -390,6 +457,7 @@ export function LoginPage() {
                 }}
                 placeholder="Min 8 chars, 1 uppercase, 1 symbol (!@#$%^&*)"
                 className={BASE_INPUT_CLASSES}
+                autoFocus
               />
             </div>
 

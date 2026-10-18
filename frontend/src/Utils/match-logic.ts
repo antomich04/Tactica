@@ -116,6 +116,12 @@ function parseMetrics(value: unknown, momentumValue?: unknown): MatchMetrics | u
     if (isFiniteNumber(value.control_index) && value.control_index >= 0 && value.control_index <= 100) {
       metrics.control_index = value.control_index;
     }
+    if (isFiniteNumber(value.home_control) && value.home_control >= 0 && value.home_control <= 100) {
+      metrics.home_control = value.home_control;
+    }
+    if (isFiniteNumber(value.away_control) && value.away_control >= 0 && value.away_control <= 100) {
+      metrics.away_control = value.away_control;
+    }
     if (typeof value.controlling_team === "string" || value.controlling_team === null) {
       metrics.controlling_team = value.controlling_team;
     }

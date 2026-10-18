@@ -14,31 +14,15 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
     return team === "Chelsea" ? "#3b82f6" : "#ef4444";
   };
 
-  // Events use the attacking team's coordinate space; defensive events retain the
-  // previous attacker's orientation even after possession changes.
-  const isFlippedCoordinateSpace = (event: MatchEvent) => {
-    const isAwayTeam = getTeamColor(event.team) === "#3b82f6" || event.team === "Chelsea";
-    const isDefensiveOrTurnover =
-      event.type === "save" ||
-      event.type === "tackle" ||
-      event.type === "foul" ||
-      event.type === "card" ||
-      event.type === "possession_change";
-
-    return isDefensiveOrTurnover ? !isAwayTeam : isAwayTeam;
+  // Maps 0..100 absolute coordinates directly inside the white pitch boundary rect (x: 1..104, y: 1..67)
+  const sx = (val: number) => {
+    const clamped = Math.max(0, Math.min(100, val));
+    return 1 + (clamped / 100) * 103;
   };
 
-  // Keep event coordinates inside the painted pitch boundary.
-  const sx = (val: number, flip: boolean) => {
-    const normalized = flip ? 100 - val : val;
-    const clamped = Math.max(0, Math.min(100, normalized));
-    return 2.5 + (clamped / 100) * 100;
-  };
-
-  const sy = (val: number, flip: boolean) => {
-    const normalized = flip ? 100 - val : val;
-    const clamped = Math.max(0, Math.min(100, normalized));
-    return 2.5 + (clamped / 100) * 63;
+  const sy = (val: number) => {
+    const clamped = Math.max(0, Math.min(100, val));
+    return 1 + (clamped / 100) * 66;
   };
 
   return (
@@ -67,42 +51,25 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         viewBox="0 0 105 68"
       >
         <defs>
-          <marker
-            id="arrow-red"
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto-start-reverse"
-          >
+          <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
           </marker>
-          <marker
-            id="arrow-blue"
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto-start-reverse"
-          >
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
           </marker>
         </defs>
 
         {visibleEvents.map((event, index) => {
           const color = getTeamColor(event.team);
-          const flip = isFlippedCoordinateSpace(event);
           const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length;
           const markerId = color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
 
-          const x = sx(event.x ?? 50, flip);
-          const y = sy(event.y ?? 50, flip);
+          const x = sx(event.x ?? 50);
+          const y = sy(event.y ?? 50);
 
           if ("end_x" in event) {
-            const endX = sx(event.end_x, flip);
-            const endY = sy(event.end_y, flip);
+            const endX = sx(event.end_x);
+            const endY = sy(event.end_y);
             const isIntercepted = event.outcome === "intercepted";
             return (
               <g key={event.id} opacity={opacity}>
@@ -167,15 +134,7 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
           if (event.type === "corner" || event.type === "penalty") {
             return (
               <g key={event.id} opacity={opacity}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="1.5"
-                  fill="none"
-                  stroke={color}
-                  strokeWidth="0.8"
-                  strokeDasharray="1,1"
-                />
+                <circle cx={x} cy={y} r="1.5" fill="none" stroke={color} strokeWidth="0.8" strokeDasharray="1,1" />
                 <circle cx={x} cy={y} r="0.5" fill="#fff" />
               </g>
             );
