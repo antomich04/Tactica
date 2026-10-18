@@ -48,6 +48,7 @@ class MatchBroadcaster:
             persona=PersonaType(raw_persona) if raw_persona in PersonaType._value2member_map_ else PersonaType.CASUAL,
             language=user.get("lang", "en") if user else "en",
             favorite_club=user.get("team") if user else None,
+            player_lock=user.get("player_lock") if user else None
         )
 
     def unregister_overlay_client(self, websocket: WebSocket):

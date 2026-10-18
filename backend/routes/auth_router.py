@@ -12,6 +12,8 @@ from services.auth_service import (
     authenticate_user, 
     logout_user, 
     refresh_user_session,
+    get_current_user,
+    create_ws_ticket,
     request_password_reset as service_request_password_reset,
     verify_password_reset_otp as service_verify_password_reset_otp,
     reset_password as service_reset_password,
@@ -47,8 +49,8 @@ async def refresh(request: Request, response: Response):
     return session_data
 
 @router.post("/ws-ticket")
-@limiter.limit("20/minute")
-async def ws_ticket(request: Request, user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def issue_ws_ticket(request: Request, user: dict = Depends(get_current_user)):
     return create_ws_ticket(user)
 
 @router.post("/logout")

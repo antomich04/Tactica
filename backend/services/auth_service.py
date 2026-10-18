@@ -72,27 +72,37 @@ def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
         "team": user.preferences.favorite_team if user.preferences else None,
         "lang": user.preferences.language if user.preferences else "en",
         "persona": user.preferences.persona if user.preferences else "casual",
-        "exp": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+        "player_lock": getattr(user.preferences, "favorite_player", None) if user.preferences else None
     }
     return jwt.encode(payload, auth_settings.jwt_secret, algorithm="HS256")
 
-def _session_response(user: User, access_token: str, message: str) -> dict:
+def serialize_user(user: User) -> dict:
+    prefs = user.preferences
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "email_verified": bool(user.email_verified),
+        "avatar_url": getattr(user, "avatar_url", None),
+        "preferences": {
+            "language": (prefs.language if prefs and prefs.language else "en"),
+            "persona": (prefs.persona if prefs and prefs.persona else "casual"),
+            "favorite_team": (prefs.favorite_team or None) if prefs else None,
+            "favorite_player": (getattr(prefs, "favorite_player", None) or None) if prefs else None,
+        },
+    }
+
+def _session_response(user: User, message: str) -> dict:
     return {
         "status": "success",
         "message": message,
-        "access_token": access_token,
-        "token_type": "bearer",
         "expires_in": auth_settings.access_ttl,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "email_verified": bool(user.email_verified),
-        }
+        "user": serialize_user(user),
     }
 
-# Register logic
+#Register logic
 @with_db_retry
 async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tuple[str, str, dict]:
     """DB work only. Returns (access_token, refresh_token, session_data) once the commit succeeded."""
@@ -136,7 +146,7 @@ async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tup
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
-        session_data = _session_response(new_user, access_token, "User registered and logged in")
+        session_data = _session_response(new_user, "User registered and logged in")
         await db_session.commit()
         return access_token, refresh_token, session_data
 
@@ -186,7 +196,7 @@ async def _authenticate_user_db(
             expires_at=now + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
-        session_data = _session_response(user, access_token, "Successfully logged in")
+        session_data = _session_response(user, "Successfully logged in")
         await db_session.commit()
         return access_token, refresh_token, session_data
 
@@ -226,7 +236,7 @@ async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, st
         db_session_record.refresh_token = new_refresh_token
         db_session_record.expires_at = now + timedelta(seconds=auth_settings.refresh_ttl)
 
-        session_data = _session_response(user, new_access_token, "Session refreshed")
+        session_data = _session_response(user, "Session refreshed")
         await db_session.commit()
         return new_access_token, new_refresh_token, session_data
 
@@ -398,7 +408,8 @@ def create_ws_ticket(user: dict) -> dict:
             "lang": user.get("lang", "en"),
             "persona": user.get("persona", "casual"),
             "type": "ws-ticket",
-            "exp": datetime.now(timezone.utc) + timedelta(seconds=auth_settings.ws_ticket_ttl)
+            "exp": datetime.now(timezone.utc) + timedelta(seconds=auth_settings.ws_ticket_ttl),
+            "player_lock": user.get("player_lock")
         },
         auth_settings.jwt_secret,
         algorithm="HS256"
