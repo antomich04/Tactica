@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { Overlay } from "../types";
-import { Radio, Activity, Mic, Shield, Sparkles, CheckCircle2 } from "lucide-react";
+import {
+  Radio,
+  Activity,
+  Mic,
+  Shield,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react";
 
 interface Props {
   active?: Overlay | null;
@@ -29,7 +36,7 @@ export function ActiveOverlay({ active, teams }: Props) {
 
       return () => clearTimeout(timer);
     }
-  }, [display?.id]);
+  }, [display]);
 
   if (!display) {
     return (
@@ -43,13 +50,17 @@ export function ActiveOverlay({ active, teams }: Props) {
     );
   }
 
-  const homeTeam = teams[0] || "Arsenal";
-  const awayTeam = teams[1] || "Chelsea";
+  const homeTeam = teams[0] || "North London Red";
+  const awayTeam = teams[1] || "London Warriors";
 
   const isRichAi = display.meta?.tier === "rich_agentic";
   const isAnalyst = display.persona === "analyst";
 
-  const searchString = (display.text + " " + (display.meta?.team || "")).toLowerCase();
+  const searchString = (
+    display.text +
+    " " +
+    (display.meta?.team || "")
+  ).toLowerCase();
   const isHome = homeTeam && searchString.includes(homeTeam.toLowerCase());
   const isAway = awayTeam && searchString.includes(awayTeam.toLowerCase());
 
@@ -98,16 +109,22 @@ export function ActiveOverlay({ active, teams }: Props) {
       key={display.id}
       className={`w-full h-full ${theme.bg} border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl relative flex flex-col justify-center animate-in fade-in slide-in-from-bottom-2 duration-300`}
     >
-      <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.accent} shadow-[0_0_15px_currentColor]`} />
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.accent} shadow-[0_0_15px_currentColor]`}
+      />
 
       <div className="relative z-10 p-3.5 pl-5 flex flex-col h-full justify-between">
         {/* Top Header Row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`flex items-center justify-center w-6 h-6 rounded bg-slate-950/50 border ${theme.border} shrink-0`}>
+            <div
+              className={`flex items-center justify-center w-6 h-6 rounded bg-slate-950/50 border ${theme.border} shrink-0`}
+            >
               <Icon className={`w-3.5 h-3.5 ${theme.text}`} />
             </div>
-            <span className={`${theme.text} font-black uppercase tracking-widest text-[11px] truncate`}>
+            <span
+              className={`${theme.text} font-black uppercase tracking-widest text-[11px] truncate`}
+            >
               {theme.label}
             </span>
           </div>

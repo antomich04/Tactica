@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../Providers/AuthProvider";
-import { API_URL } from "../Services/authService";
+import { api, ApiError } from "../Services/authService";
 import { Button } from "@/Components/button";
 import { Input } from "@/Components/input";
 import { Label } from "@/Components/label";
@@ -18,13 +18,16 @@ const ERROR_INPUT_CLASSES =
 function validateBackendPassword(pw: string): string {
   if (!pw) return "Password is required.";
   if (pw.length < 8) return "Password must be at least 8 characters.";
-  if (!/[A-Z]/.test(pw)) return "Password must contain at least one capital letter.";
-  if (!/[!@#$%^&*]/.test(pw)) return "Password must contain at least one special character (!@#$%^&*).";
+  if (!/[A-Z]/.test(pw))
+    return "Password must contain at least one capital letter.";
+  if (!/[!@#$%^&*]/.test(pw))
+    return "Password must contain at least one special character (!@#$%^&*).";
   if (/[()]/.test(pw)) return "Password must not contain parentheses.";
   return "";
 }
 
-function extractAxiosError(err: unknown, fallback: string): string {
+function extractError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
     if (typeof detail === "string") return detail;
@@ -41,12 +44,17 @@ export function LoginPage() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState({ identifier: "", password: "" });
+  const [fieldErrors, setFieldErrors] = useState({
+    identifier: "",
+    password: "",
+  });
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
   // 3-Step Forgot Password State: request -> verify -> reset
-  const [mode, setMode] = useState<"login" | "forgot_request" | "forgot_verify" | "forgot_reset">("login");
+  const [mode, setMode] = useState<
+    "login" | "forgot_request" | "forgot_verify" | "forgot_reset"
+  >("login");
   const [resetEmail, setResetEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -80,7 +88,7 @@ export function LoginPage() {
       await login(identifier.trim(), password);
       navigate("/Home");
     } catch (err: unknown) {
-      setFormError(extractAxiosError(err, "Sign in failed"));
+      setFormError(extractError(err, "Sign in failed"));
     } finally {
       setBusy(false);
     }
@@ -96,12 +104,12 @@ export function LoginPage() {
     setBusy(true);
     setFormError("");
     try {
-      await axios.post(`${API_URL}/api/auth/forgot-password/request`, {
+      await api.post("/api/auth/forgot-password/request", {
         email: resetEmail.trim(),
       });
       setMode("forgot_verify");
     } catch (err: unknown) {
-      setFormError(extractAxiosError(err, "Request failed"));
+      setFormError(extractError(err, "Request failed"));
     } finally {
       setBusy(false);
     }
@@ -117,13 +125,13 @@ export function LoginPage() {
     setBusy(true);
     setFormError("");
     try {
-      await axios.post(`${API_URL}/api/auth/forgot-password/verify`, {
+      await api.post("/api/auth/forgot-password/verify", {
         email: resetEmail.trim(),
         otp: otp.trim(),
       });
       setMode("forgot_reset");
     } catch (err: unknown) {
-      setFormError(extractAxiosError(err, "Invalid or expired OTP."));
+      setFormError(extractError(err, "Invalid or expired OTP."));
     } finally {
       setBusy(false);
     }
@@ -141,7 +149,7 @@ export function LoginPage() {
     setBusy(true);
     setFormError("");
     try {
-      await axios.post(`${API_URL}/api/auth/forgot-password/reset`, {
+      await api.post("/api/auth/forgot-password/reset", {
         email: resetEmail.trim(),
         otp: otp.trim(),
         new_password: newPassword,
@@ -152,7 +160,7 @@ export function LoginPage() {
       setOtp("");
       setNewPassword("");
     } catch (err: unknown) {
-      setFormError(extractAxiosError(err, "Reset failed."));
+      setFormError(extractError(err, "Reset failed."));
     } finally {
       setBusy(false);
     }
@@ -192,7 +200,11 @@ export function LoginPage() {
       {/* Right Form Section */}
       <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
         {mode === "login" && (
-          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={submitLogin} noValidate>
+          <form
+            className="w-full max-w-[560px] flex flex-col gap-7"
+            onSubmit={submitLogin}
+            noValidate
+          >
             <div>
               <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
                 Welcome Back
@@ -316,7 +328,11 @@ export function LoginPage() {
         )}
 
         {mode === "forgot_request" && (
-          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleRequestReset} noValidate>
+          <form
+            className="w-full max-w-[560px] flex flex-col gap-7"
+            onSubmit={handleRequestReset}
+            noValidate
+          >
             <div>
               <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
                 Reset Password
@@ -327,7 +343,10 @@ export function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <Label htmlFor="resetEmail" className="text-lg font-semibold text-white">
+              <Label
+                htmlFor="resetEmail"
+                className="text-lg font-semibold text-white"
+              >
                 Email Address
               </Label>
               <Input
@@ -374,13 +393,18 @@ export function LoginPage() {
         )}
 
         {mode === "forgot_verify" && (
-          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleVerifyOtp} noValidate>
+          <form
+            className="w-full max-w-[560px] flex flex-col gap-7"
+            onSubmit={handleVerifyOtp}
+            noValidate
+          >
             <div>
               <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
                 Verify OTP
               </h2>
               <p className="text-slate-400 text-xl m-0">
-                Enter the 6-digit code sent to <span className="text-white font-semibold">{resetEmail}</span>.
+                Enter the 6-digit code sent to{" "}
+                <span className="text-white font-semibold">{resetEmail}</span>.
               </p>
             </div>
 
@@ -433,18 +457,26 @@ export function LoginPage() {
         )}
 
         {mode === "forgot_reset" && (
-          <form className="w-full max-w-[560px] flex flex-col gap-7" onSubmit={handleConfirmReset} noValidate>
+          <form
+            className="w-full max-w-[560px] flex flex-col gap-7"
+            onSubmit={handleConfirmReset}
+            noValidate
+          >
             <div>
               <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
                 New Password
               </h2>
               <p className="text-slate-400 text-xl m-0">
-                OTP verified! Choose a new password for <span className="text-white font-semibold">{resetEmail}</span>.
+                OTP verified! Choose a new password for{" "}
+                <span className="text-white font-semibold">{resetEmail}</span>.
               </p>
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <Label htmlFor="newPassword" className="text-lg font-semibold text-white">
+              <Label
+                htmlFor="newPassword"
+                className="text-lg font-semibold text-white"
+              >
                 New Password
               </Label>
               <Input

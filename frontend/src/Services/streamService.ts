@@ -15,7 +15,10 @@ WS_BASE.protocol = WS_BASE.protocol === "https:" ? "wss:" : "ws:";
 const EVENTS_URL = new URL("/api/events-stream", WS_BASE).toString();
 const OVERLAYS_URL = new URL("/api/overlays-stream", WS_BASE).toString();
 
-export function openLiveStream(getTicket: () => Promise<string>, handlers: Handlers): Stop {
+export function openLiveStream(
+  getTicket: () => Promise<string>,
+  handlers: Handlers,
+): Stop {
   let eventsSocket: WebSocket | undefined;
   let overlaysSocket: WebSocket | undefined;
   let retry: number | undefined;
@@ -24,10 +27,10 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
   function retryLater(status: Status, detail: string) {
     if (stopped || retry !== undefined) return;
     handlers.onStatus(status, detail);
-    
+
     eventsSocket?.close();
     overlaysSocket?.close();
-    
+
     retry = window.setTimeout(() => {
       retry = undefined;
       void connect();
@@ -39,9 +42,13 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
 
     let ticket: string;
     try {
-      ticket = encodeURIComponent(await getTicket());
+      // Do not wrap in encodeURIComponent() here; URL.searchParams.set() encodes automatically.
+      ticket = await getTicket();
     } catch (e) {
-      retryLater("error", e instanceof Error ? e.message : "Could not prepare the connection");
+      retryLater(
+        "error",
+        e instanceof Error ? e.message : "Could not prepare the connection",
+      );
       return;
     }
 
@@ -72,7 +79,8 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
       };
 
       ws.onerror = () => {
-        if (!localOpened) retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
+        if (!localOpened)
+          retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
       };
 
       ws.onclose = (event) => {
@@ -95,8 +103,12 @@ export function openLiveStream(getTicket: () => Promise<string>, handlers: Handl
     eventUrl.searchParams.set("ticket", ticket);
     const overlayUrl = new URL(OVERLAYS_URL);
     overlayUrl.searchParams.set("ticket", ticket);
-    eventsSocket = setupSocket(eventUrl.toString(), () => { eventsOpened = true; });
-    overlaysSocket = setupSocket(overlayUrl.toString(), () => { overlaysOpened = true; });
+    eventsSocket = setupSocket(eventUrl.toString(), () => {
+      eventsOpened = true;
+    });
+    overlaysSocket = setupSocket(overlayUrl.toString(), () => {
+      overlaysOpened = true;
+    });
   }
 
   void connect();

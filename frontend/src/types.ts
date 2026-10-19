@@ -117,28 +117,47 @@ export type MatchMetrics = {
 };
 
 export type Envelope =
-  | { kind: "event"; data: MatchEvent; metrics?: MatchMetrics; momentum?: MomentumPoint }
+  | {
+      kind: "event";
+      data: MatchEvent;
+      metrics?: MatchMetrics;
+      momentum?: MomentumPoint;
+    }
   | { kind: "overlay"; data: Overlay };
 
-export type Status = "idle" | "connecting" | "live" | "reconnecting" | "ended" | "error";
+export type Status =
+  | "idle"
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "ended"
+  | "error";
 
-// These role values must match the backend authentication schema.
 export type Role = "viewer" | "producer";
+export type LanguageCode = "en" | "es" | "pt" | "gr";
+export type PersonaCode = "casual" | "analyst" | "newcomer" | "club_fan";
+
+export type UserPreferences = {
+  language: LanguageCode;
+  persona: PersonaCode;
+  favorite_team: string | null;
+  favorite_player: string | null;
+};
 
 export type User = {
   id: number;
   username: string;
   email: string;
   role: Role;
-  email_verified?: boolean;
+  email_verified: boolean;
+  avatar_url: string | null;
+  preferences: UserPreferences;
 };
 
 export type Session = {
-  status?: string;
-  message?: string;
-  access_token: string;
-  token_type: "bearer";
-  /** Access-token lifetime in seconds. */
+  status: string;
+  message: string;
+  /** Access-token cookie lifetime in seconds (900s = 15m). */
   expires_in: number;
   user: User;
 };

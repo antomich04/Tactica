@@ -5,32 +5,32 @@ import { Card, CardContent } from "@/Components/card";
 import { Badge } from "@/Components/badge";
 import { TacticalPitch, TacticalPlayer } from "@/Components/TacticalPitch";
 
-const ARSENAL_STARTERS: TacticalPlayer[] = [
-  { name: "D. Raya", role: "GK" },
-  { name: "B. White", role: "RB" },
-  { name: "W. Saliba", role: "RCB" },
-  { name: "Gabriel", role: "LCB" },
-  { name: "O. Zinchenko", role: "LB" },
-  { name: "D. Rice", role: "CDM" },
-  { name: "M. Ødegaard", role: "RCM" },
-  { name: "K. Havertz", role: "LCM" },
-  { name: "B. Saka", role: "RW" },
-  { name: "G. Martinelli", role: "LW" },
-  { name: "G. Jesus", role: "ST" },
+const NORTH_LONDON_RED_STARTERS: TacticalPlayer[] = [
+  { name: "D. Rayya", role: "GK" },
+  { name: "B. Whyte", role: "RB" },
+  { name: "W. Salibba", role: "RCB" },
+  { name: "Gabirel", role: "LCB" },
+  { name: "J. Timbur", role: "LB" },
+  { name: "D. Ryce", role: "CDM" },
+  { name: "M. Odegaurd", role: "RCM" },
+  { name: "M. Mereno", role: "LCM" },
+  { name: "B. Sakka", role: "RW" },
+  { name: "G. Martineli", role: "LW" },
+  { name: "K. Haverts", role: "ST" },
 ];
 
-const CHELSEA_STARTERS: TacticalPlayer[] = [
-  { name: "R. Sanchez", role: "GK" },
-  { name: "R. James", role: "RB" },
-  { name: "T. Silva", role: "RCB" },
-  { name: "L. Colwill", role: "LCB" },
-  { name: "B. Chilwell", role: "LB" },
-  { name: "M. Caicedo", role: "RDM" },
-  { name: "E. Fernández", role: "LDM" },
-  { name: "C. Palmer", role: "RW" },
-  { name: "C. Gallagher", role: "CAM" },
-  { name: "R. Sterling", role: "LW" },
-  { name: "N. Jackson", role: "ST" },
+const LONDON_WARRIORS_STARTERS: TacticalPlayer[] = [
+  { name: "R. Sanches", role: "GK" },
+  { name: "R. Jaymes", role: "RB" },
+  { name: "W. Fofanna", role: "RCB" },
+  { name: "L. Colwil", role: "LCB" },
+  { name: "M. Cucurela", role: "LB" },
+  { name: "M. Caiceddo", role: "RDM" },
+  { name: "E. Fernandes", role: "LDM" },
+  { name: "N. Madueki", role: "RW" },
+  { name: "K. Plammer", role: "CAM" },
+  { name: "P. Netoh", role: "LW" },
+  { name: "N. Jacksun", role: "ST" },
 ];
 
 export function HomePage() {
@@ -55,14 +55,13 @@ function NextMatchSection({ onWatch }: { onWatch: () => void }) {
       <Card className="relative bg-slate-800 rounded-3xl overflow-hidden shadow-2xl border-none w-full">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-emerald-950/20 opacity-90 pointer-events-none" />
         <CardContent className="relative z-10 flex flex-row items-center justify-evenly py-6 px-3 sm:px-6 md:py-12 md:px-12 gap-2 sm:gap-6 border-none">
-          
           {/* Home Team */}
           <div className="flex flex-col items-center gap-2 sm:gap-4 flex-1 max-w-[180px]">
             <div className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-b-full flex items-center justify-center bg-gradient-to-br from-red-600/10 to-red-800/30 border-2 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
               <Shield className="w-9 h-9 sm:w-14 sm:h-14 md:w-20 md:h-20 text-red-500 drop-shadow-md" />
             </div>
             <span className="text-base sm:text-xl md:text-2xl font-extrabold text-white text-center tracking-wide">
-              Arsenal
+              North London Red
             </span>
           </div>
 
@@ -72,7 +71,7 @@ function NextMatchSection({ onWatch }: { onWatch: () => void }) {
               variant="outline"
               className="bg-slate-900 py-1 px-2.5 sm:py-2 sm:px-4 md:py-2.5 md:px-6 border-slate-600 text-slate-300 text-[10px] sm:text-xs md:text-sm font-bold tracking-wider mb-2 md:mb-4 whitespace-nowrap"
             >
-              TOMORROW 02:53 PM
+              LIVE SIMULATION READY
             </Badge>
             <span className="text-3xl sm:text-5xl md:text-7xl font-black text-red-500 tracking-tighter leading-none drop-shadow-lg mb-3 md:mb-5">
               VS
@@ -92,10 +91,9 @@ function NextMatchSection({ onWatch }: { onWatch: () => void }) {
               <Shield className="w-9 h-9 sm:w-14 sm:h-14 md:w-20 md:h-20 text-blue-500 drop-shadow-md" />
             </div>
             <span className="text-base sm:text-xl md:text-2xl font-extrabold text-white text-center tracking-wide">
-              Chelsea
+              London Warriors
             </span>
           </div>
-
         </CardContent>
       </Card>
     </section>
@@ -111,7 +109,6 @@ function MatchDetailsSection() {
       <Card className="bg-slate-800/50 border-slate-700/50 rounded-3xl flex flex-col border-none relative overflow-hidden shadow-xl">
         <div className="absolute inset-0 rounded-[inherit] bg-slate-900/50 pointer-events-none" />
         <CardContent className="relative z-10 w-full p-3 sm:p-6 md:p-10 flex flex-col gap-6 md:gap-8">
-          
           <div className="flex items-center justify-center gap-2 md:gap-4 border-b border-slate-700/50 pb-4 md:pb-6 text-center">
             <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-400 shrink-0" />
             <h3 className="text-xs sm:text-base md:text-xl font-bold text-slate-200 uppercase tracking-widest m-0">
@@ -120,13 +117,11 @@ function MatchDetailsSection() {
             <Target className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-400 shrink-0" />
           </div>
 
-          {/* Forced side-by-side (flex-row) on mobile and desktop */}
           <div className="flex flex-row items-start justify-center gap-2.5 sm:gap-6 md:gap-10 xl:gap-16 w-full max-w-4xl mx-auto">
-            
             <div className="flex-1 flex flex-col items-center gap-2 md:gap-4 min-w-0">
               <div className="text-center">
                 <span className="block text-sm sm:text-xl md:text-2xl font-black text-red-500 mb-1 truncate">
-                  Arsenal
+                  North London Red
                 </span>
                 <Badge
                   variant="outline"
@@ -135,13 +130,16 @@ function MatchDetailsSection() {
                   4-3-3
                 </Badge>
               </div>
-              <TacticalPitch teamColor="red" players={ARSENAL_STARTERS} />
+              <TacticalPitch
+                teamColor="red"
+                players={NORTH_LONDON_RED_STARTERS}
+              />
             </div>
 
             <div className="flex-1 flex flex-col items-center gap-2 md:gap-4 min-w-0">
               <div className="text-center">
                 <span className="block text-sm sm:text-xl md:text-2xl font-black text-blue-500 mb-1 truncate">
-                  Chelsea
+                  London Warriors
                 </span>
                 <Badge
                   variant="outline"
@@ -150,9 +148,11 @@ function MatchDetailsSection() {
                   4-2-3-1
                 </Badge>
               </div>
-              <TacticalPitch teamColor="blue" players={CHELSEA_STARTERS} />
+              <TacticalPitch
+                teamColor="blue"
+                players={LONDON_WARRIORS_STARTERS}
+              />
             </div>
-
           </div>
         </CardContent>
       </Card>

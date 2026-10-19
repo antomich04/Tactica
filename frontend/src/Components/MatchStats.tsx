@@ -29,97 +29,119 @@ const emptyStats = (): TeamStats => ({
 });
 
 export function MatchStats({ events, teams }: Props) {
-  const homeTeam = teams[0] || "Arsenal";
-  const awayTeam = teams[1] || "Chelsea";
+  const homeTeam = teams[0] || "North London Red";
+  const awayTeam = teams[1] || "London Warriors";
 
-  const { home, away, possessionHome, possessionAway, topPlayers } = useMemo(() => {
-    const h = emptyStats();
-    const a = emptyStats();
-    const playerScores: Record<string, { name: string; team: string; rating: number }> = {};
+  const { home, away, possessionHome, possessionAway, topPlayers } =
+    useMemo(() => {
+      const h = emptyStats();
+      const a = emptyStats();
+      const playerScores: Record<
+        string,
+        { name: string; team: string; rating: number }
+      > = {};
 
-    const bumpPlayer = (name: string | undefined | null, team: string, delta: number) => {
-      if (!name || name === "Player") return;
-      if (!playerScores[name]) {
-        playerScores[name] = { name, team, rating: 6.5 };
+      const bumpPlayer = (
+        name: string | undefined | null,
+        team: string,
+        delta: number,
+      ) => {
+        if (!name || name === "Player") return;
+        if (!playerScores[name]) {
+          playerScores[name] = { name, team, rating: 6.5 };
+        }
+        playerScores[name].rating = Math.min(
+          9.9,
+          Math.max(4.5, playerScores[name].rating + delta),
+        );
+      };
+
+      for (const ev of events) {
+        const target = ev.team === awayTeam ? a : h;
+
+        switch (ev.type) {
+          case "pass":
+            target.passes += 1;
+            if (ev.outcome === "completed") {
+              target.passesCompleted += 1;
+              bumpPlayer(ev.player, ev.team, 0.04);
+            } else {
+              bumpPlayer(ev.player, ev.team, -0.05);
+            }
+            break;
+
+          case "shot":
+            target.shots += 1;
+            target.xg += ev.xg || 0;
+            if (ev.outcome === "goal" || ev.outcome === "saved") {
+              target.shotsOnTarget += 1;
+              bumpPlayer(ev.player, ev.team, 0.18);
+            } else {
+              bumpPlayer(ev.player, ev.team, 0.05);
+            }
+            if ((ev.xg || 0) >= 0.25) {
+              target.bigChances += 1;
+            }
+            break;
+
+          case "goal":
+            bumpPlayer(ev.scorer || ev.player, ev.team, 0.85);
+            if (ev.assist_player) {
+              bumpPlayer(ev.assist_player, ev.team, 0.45);
+            }
+            break;
+
+          case "save":
+            bumpPlayer(ev.player, ev.team, 0.35 + (ev.difficulty || 0) * 0.2);
+            break;
+
+          case "corner":
+            target.corners += 1;
+            break;
+
+          case "tackle":
+            if (ev.outcome === "won") {
+              target.tacklesWon += 1;
+              bumpPlayer(ev.player, ev.team, 0.22);
+            }
+            break;
+
+          case "card":
+            bumpPlayer(
+              ev.player,
+              ev.team,
+              ev.card_color === "red" ? -1.2 : -0.4,
+            );
+            break;
+        }
       }
-      playerScores[name].rating = Math.min(9.9, Math.max(4.5, playerScores[name].rating + delta));
-    };
 
-    for (const ev of events) {
-      const target = ev.team === awayTeam ? a : h;
+      const totalPasses = h.passes + a.passes;
+      const possHome =
+        totalPasses > 0 ? Math.round((h.passes / totalPasses) * 100) : 50;
+      const possAway = 100 - possHome;
 
-      switch (ev.type) {
-        case "pass":
-          target.passes += 1;
-          if (ev.outcome === "completed") {
-            target.passesCompleted += 1;
-            bumpPlayer(ev.player, ev.team, 0.04);
-          } else {
-            bumpPlayer(ev.player, ev.team, -0.05);
-          }
-          break;
+      const sortedPlayers = Object.values(playerScores)
+        .sort((p1, p2) => p2.rating - p1.rating)
+        .slice(0, 3);
 
-        case "shot":
-          target.shots += 1;
-          target.xg += ev.xg || 0;
-          if (ev.outcome === "goal" || ev.outcome === "saved") {
-            target.shotsOnTarget += 1;
-            bumpPlayer(ev.player, ev.team, 0.18);
-          } else {
-            bumpPlayer(ev.player, ev.team, 0.05);
-          }
-          if ((ev.xg || 0) >= 0.25) {
-            target.bigChances += 1;
-          }
-          break;
+      return {
+        home: h,
+        away: a,
+        possessionHome: possHome,
+        possessionAway: possAway,
+        topPlayers: sortedPlayers,
+      };
+    }, [events, awayTeam]);
 
-        case "goal":
-          bumpPlayer(ev.scorer || ev.player, ev.team, 0.85);
-          if (ev.assist_player) {
-            bumpPlayer(ev.assist_player, ev.team, 0.45);
-          }
-          break;
-
-        case "save":
-          bumpPlayer(ev.player, ev.team, 0.35 + (ev.difficulty || 0) * 0.2);
-          break;
-
-        case "corner":
-          target.corners += 1;
-          break;
-
-        case "tackle":
-          if (ev.outcome === "won") {
-            target.tacklesWon += 1;
-            bumpPlayer(ev.player, ev.team, 0.22);
-          }
-          break;
-
-        case "card":
-          bumpPlayer(ev.player, ev.team, ev.card_color === "red" ? -1.2 : -0.4);
-          break;
-      }
-    }
-
-    const totalPasses = h.passes + a.passes;
-    const possHome = totalPasses > 0 ? Math.round((h.passes / totalPasses) * 100) : 50;
-    const possAway = 100 - possHome;
-
-    const sortedPlayers = Object.values(playerScores)
-      .sort((p1, p2) => p2.rating - p1.rating)
-      .slice(0, 3);
-
-    return {
-      home: h,
-      away: a,
-      possessionHome: possHome,
-      possessionAway: possAway,
-      topPlayers: sortedPlayers,
-    };
-  }, [events, awayTeam]);
-
-  const homePassAcc = home.passes > 0 ? Math.round((home.passesCompleted / home.passes) * 100) : 0;
-  const awayPassAcc = away.passes > 0 ? Math.round((away.passesCompleted / away.passes) * 100) : 0;
+  const homePassAcc =
+    home.passes > 0
+      ? Math.round((home.passesCompleted / home.passes) * 100)
+      : 0;
+  const awayPassAcc =
+    away.passes > 0
+      ? Math.round((away.passesCompleted / away.passes) * 100)
+      : 0;
 
   return (
     <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 sm:p-5 shadow-lg flex flex-col gap-5">
@@ -223,7 +245,9 @@ export function MatchStats({ events, teams }: Props) {
                     >
                       {p.rating.toFixed(1)}
                     </span>
-                    <span className="text-sm font-bold text-slate-200 truncate">{p.name}</span>
+                    <span className="text-sm font-bold text-slate-200 truncate">
+                      {p.name}
+                    </span>
                   </div>
                   <span
                     className={`text-xs font-bold shrink-0 ml-2 ${
@@ -262,9 +286,15 @@ function StatRow({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-xs sm:text-sm">
-        <span className="font-black text-white tabular-nums w-12 text-left">{leftDisplay}</span>
-        <span className="text-xs font-semibold text-slate-400 tracking-wide">{label}</span>
-        <span className="font-black text-white tabular-nums w-12 text-right">{rightDisplay}</span>
+        <span className="font-black text-white tabular-nums w-12 text-left">
+          {leftDisplay}
+        </span>
+        <span className="text-xs font-semibold text-slate-400 tracking-wide">
+          {label}
+        </span>
+        <span className="font-black text-white tabular-nums w-12 text-right">
+          {rightDisplay}
+        </span>
       </div>
 
       <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex gap-0.5">

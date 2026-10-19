@@ -9,19 +9,19 @@ import { NavigationBar } from "./Components/NavigationBar";
 
 function AuthGuard() {
   const { status, user } = useAuth();
-  
+
   if (status === "loading") return <p className="splash">Loading…</p>;
-  
+
   const isAuthenticated = status !== "anonymous" && user;
   return isAuthenticated ? <Outlet /> : <Navigate to="/Login" replace />;
 }
 
 function PublicGuard() {
   const { status, user } = useAuth();
-  
+
   if (status === "loading") return <p className="splash">Loading…</p>;
-  
-  const isAuthenticated = status !== "anonymous" && user;
+
+  const isAuthenticated = status === "authenticated" && Boolean(user);
   return !isAuthenticated ? <Outlet /> : <Navigate to="/Home" replace />;
 }
 
@@ -58,8 +58,8 @@ export const router = createBrowserRouter([
           { path: "/Home", element: <HomePage /> },
           { path: "/Match", element: <MatchPageWrapper /> },
           { path: "/Settings", element: <SettingsPage /> },
-        ]
-      }
+        ],
+      },
     ],
   },
   {

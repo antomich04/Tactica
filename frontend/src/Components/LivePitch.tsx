@@ -11,7 +11,7 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
 
   const getTeamColor = (team: string) => {
     if (colorOf) return colorOf(team);
-    return team === "Chelsea" ? "#3b82f6" : "#ef4444";
+    return team === "London Warriors" ? "#3b82f6" : "#ef4444";
   };
 
   // Maps 0..100 absolute coordinates directly inside the white pitch boundary rect (x: 1..104, y: 1..67)
@@ -36,13 +36,67 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         className="absolute inset-0 w-full h-full pointer-events-none"
         viewBox="0 0 105 68"
       >
-        <rect x="1" y="1" width="103" height="66" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <line x1="52.5" y1="1" x2="52.5" y2="67" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <circle cx="52.5" cy="34" r="9.15" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <rect x="1" y="13.85" width="16.5" height="40.3" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <rect x="87.5" y="13.85" width="16.5" height="40.3" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <rect x="1" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
-        <rect x="98.5" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(148, 163, 184, 0.5)" strokeWidth="0.6" />
+        <rect
+          x="1"
+          y="1"
+          width="103"
+          height="66"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <line
+          x1="52.5"
+          y1="1"
+          x2="52.5"
+          y2="67"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <circle
+          cx="52.5"
+          cy="34"
+          r="9.15"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <rect
+          x="1"
+          y="13.85"
+          width="16.5"
+          height="40.3"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <rect
+          x="87.5"
+          y="13.85"
+          width="16.5"
+          height="40.3"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <rect
+          x="1"
+          y="24.84"
+          width="5.5"
+          height="18.32"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
+        <rect
+          x="98.5"
+          y="24.84"
+          width="5.5"
+          height="18.32"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.5)"
+          strokeWidth="0.6"
+        />
       </svg>
 
       <svg
@@ -51,10 +105,26 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         viewBox="0 0 105 68"
       >
         <defs>
-          <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker
+            id="arrow-red"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
           </marker>
-          <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker
+            id="arrow-blue"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
           </marker>
         </defs>
@@ -62,7 +132,8 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         {visibleEvents.map((event, index) => {
           const color = getTeamColor(event.team);
           const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length;
-          const markerId = color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
+          const markerId =
+            color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
 
           const x = sx(event.x ?? 50);
           const y = sy(event.y ?? 50);
@@ -93,13 +164,37 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
             const isGoal = event.outcome === "goal";
             return (
               <g key={event.id} opacity={opacity}>
-                <circle cx={x} cy={y} r={radius} fill="none" stroke={color} strokeWidth="0.4" />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={radius}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="0.4"
+                />
                 <circle cx={x} cy={y} r={radius * 0.4} fill={color} />
 
                 {isGoal && (
-                  <circle cx={x} cy={y} r={radius + 1.5} fill="none" stroke="#fbbf24" strokeWidth="0.5">
-                    <animate attributeName="r" values={`${radius};${radius + 6}`} dur="1.5s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite" />
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={radius + 1.5}
+                    fill="none"
+                    stroke="#fbbf24"
+                    strokeWidth="0.5"
+                  >
+                    <animate
+                      attributeName="r"
+                      values={`${radius};${radius + 6}`}
+                      dur="1.5s"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="1;0"
+                      dur="1.5s"
+                      repeatCount="indefinite"
+                    />
                   </circle>
                 )}
               </g>
@@ -107,7 +202,8 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
           }
 
           if (event.type === "card") {
-            const cardColor = event.card_color === "red" ? "#ef4444" : "#eab308";
+            const cardColor =
+              event.card_color === "red" ? "#ef4444" : "#eab308";
 
             return (
               <g key={event.id} opacity={opacity}>
@@ -122,9 +218,26 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
                   rx="0.5"
                 />
                 {opacity > 0.8 && (
-                  <circle cx={x} cy={y} r="2" fill="none" stroke={cardColor} strokeWidth="0.5">
-                    <animate attributeName="r" values="2;10" dur="1.2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.8;0" dur="1.2s" repeatCount="indefinite" />
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="2"
+                    fill="none"
+                    stroke={cardColor}
+                    strokeWidth="0.5"
+                  >
+                    <animate
+                      attributeName="r"
+                      values="2;10"
+                      dur="1.2s"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      values="0.8;0"
+                      dur="1.2s"
+                      repeatCount="indefinite"
+                    />
                   </circle>
                 )}
               </g>
@@ -134,7 +247,15 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
           if (event.type === "corner" || event.type === "penalty") {
             return (
               <g key={event.id} opacity={opacity}>
-                <circle cx={x} cy={y} r="1.5" fill="none" stroke={color} strokeWidth="0.8" strokeDasharray="1,1" />
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="1.5"
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="0.8"
+                  strokeDasharray="1,1"
+                />
                 <circle cx={x} cy={y} r="0.5" fill="#fff" />
               </g>
             );

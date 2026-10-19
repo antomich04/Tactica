@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { API_URL } from "../Services/authService";
+import { api, ApiError } from "../Services/authService";
 import { Scoreboard } from "../Components/Scoreboard";
 import { ActiveOverlay } from "../Components/ActiveOverlay";
 import { EventFeed } from "../Components/EventFeed";
@@ -8,7 +8,13 @@ import { LivePitch } from "../Components/LivePitch";
 import { MomentumGraph } from "../Components/MomentumGraph";
 import { MatchStats } from "../Components/MatchStats";
 import { openLiveStream } from "../Services/streamService";
-import type { Envelope, MatchEvent, MatchMetrics, Overlay, Status } from "../types";
+import type {
+  Envelope,
+  MatchEvent,
+  MatchMetrics,
+  Overlay,
+  Status,
+} from "../types";
 
 type Props = {
   getWsTicket: () => Promise<string>;
@@ -18,6 +24,7 @@ export function MatchPage({ getWsTicket }: Props) {
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [detail, setDetail] = useState("");
+  const matchTriggeredRef = useRef(false);
 
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
@@ -46,56 +53,91 @@ export function MatchPage({ getWsTicket }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running) {
+      matchTriggeredRef.current = false;
+      return;
+    }
+
     setEvents([]);
     setOverlays([]);
     setLatestMetrics(null);
 
     const handlers = {
       onMessage: add,
-      onStatus: (next: Status, text?: string) => {
+      onStatus: async (next: Status, text?: string) => {
         setStatus(next);
         setDetail(text ?? "");
-        if (next === "ended") setRunning(false);
+
+        // Once both WebSockets are connected ("live"), kick off the backend match engine
+        // so zero opening events are missed during the WebSocket handshake.
+        if (next === "live" && !matchTriggeredRef.current) {
+          matchTriggeredRef.current = true;
+          try {
+            await api.post("/api/match/start");
+          } catch (error) {
+            const message =
+              error instanceof ApiError
+                ? error.message
+                : axios.isAxiosError(error)
+                  ? (error.response?.data?.detail ?? error.message)
+                  : error instanceof Error
+                    ? error.message
+                    : "Failed to start match.";
+            // Ignore 409/already-running messages if a match is already in progress
+            if (
+              typeof message === "string" &&
+              !message.toLowerCase().includes("already")
+            ) {
+              setDetail(message);
+            }
+          }
+        }
+
+        if (next === "ended") {
+          setRunning(false);
+          matchTriggeredRef.current = false;
+        }
       },
     };
 
     return openLiveStream(getWsTicket, handlers);
   }, [running, add, getWsTicket]);
 
-  const toggleMatch = async () => {
+  const toggleMatch = () => {
     if (running) {
       setStatus("idle");
+      setDetail("");
       setRunning(false);
     } else {
-      try {
-        await axios.post(`${API_URL}/api/match/start`, undefined, { withCredentials: true });
-        setDetail("");
-        setRunning(true);
-      } catch (error) {
-        const message = axios.isAxiosError(error)
-          ? error.response?.data?.detail ?? error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to start match.";
-        setStatus("error");
-        setDetail(typeof message === "string" ? message : "Failed to start match.");
-      }
+      setDetail("");
+      setRunning(true);
     }
   };
 
   const now = useMemo(
-    () => Math.max(0, ...events.map((e) => e.timestamp), ...overlays.map((o) => o.timestamp)),
-    [events, overlays]
+    () =>
+      Math.max(
+        0,
+        ...events.map((e) => e.timestamp),
+        ...overlays.map((o) => o.timestamp),
+      ),
+    [events, overlays],
   );
 
-  const active = overlays.length > 0 ? overlays[overlays.length - 1] : undefined;
+  const active =
+    overlays.length > 0 ? overlays[overlays.length - 1] : undefined;
 
-  const evidence = useMemo(() => new Set(active?.evidence_event_ids ?? []), [active]);
-  const teams = useMemo(() => [...new Set(events.map((e) => e.team))].slice(0, 2), [events]);
+  const evidence = useMemo(
+    () => new Set(active?.evidence_event_ids ?? []),
+    [active],
+  );
+  const teams = useMemo(
+    () => [...new Set(events.map((e) => e.team))].slice(0, 2),
+    [events],
+  );
   const colorOf = useCallback(
     (team: string) => (teams.indexOf(team) === 1 ? "#3b82f6" : "#ef4444"),
-    [teams]
+    [teams],
   );
 
   return (
@@ -119,7 +161,9 @@ export function MatchPage({ getWsTicket }: Props) {
             {!events.length && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs z-20 rounded-xl border border-slate-600 max-w-[700px] mx-auto">
                 <p className="text-slate-300 font-bold tracking-wide text-sm">
-                  {status === "live" ? "AWAITING KICKOFF..." : "PRESS START TO CONNECT"}
+                  {status === "live"
+                    ? "AWAITING KICKOFF..."
+                    : "PRESS START TO CONNECT"}
                 </p>
               </div>
             )}

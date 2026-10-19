@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import * as auth from "../Services/authService";
-import { AuthStatus, Session, User } from "../types";
+import { AuthStatus, Session, User, UserPreferences } from "../types";
 
 // Schedule refresh 30 seconds before the access token's reported expiry.
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
@@ -20,10 +20,16 @@ type AuthContextValue = {
   user: User | null;
   notice: string;
   login: (usernameOrEmail: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (
+    username: string,
+    email: string,
+    password: string,
+    preferences?: Partial<UserPreferences>,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   getWsTicket: () => Promise<string>;
   refreshUser: () => Promise<void>;
+  patchUser: (updates: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -43,7 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const schedule = useCallback((ms: number) => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => void renewRef.current(), Math.max(0, ms));
+    timer.current = window.setTimeout(
+      () => void renewRef.current(),
+      Math.max(0, ms),
+    );
   }, []);
 
   const signedIn = useCallback(
@@ -53,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setNotice("");
       schedule(s.expires_in * 1000 - RENEW_BEFORE_EXPIRY_MS);
     },
-    [schedule]
+    [schedule],
   );
 
   const signedOut = useCallback((message = "") => {
@@ -75,12 +84,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (started !== auth.sessionEpoch()) return;
 
         if (auth.isUnauthorized(e))
-          signedOut(firstLoad ? "" : "Your session expired. Please sign in again.");
-        else if (firstLoad) signedOut(e instanceof Error ? e.message : "Can't reach the server.");
+          signedOut(
+            firstLoad ? "" : "Your session expired. Please sign in again.",
+          );
+        else if (firstLoad)
+          signedOut(e instanceof Error ? e.message : "Can't reach the server.");
         else schedule(RETRY_MS);
       }
     },
-    [signedIn, signedOut, schedule]
+    [signedIn, signedOut, schedule],
   );
 
   useEffect(() => {
@@ -113,14 +125,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (usernameOrEmail: string, password: string) => {
       signedIn(await auth.login(usernameOrEmail, password));
     },
-    [signedIn]
+    [signedIn],
   );
 
   const register = useCallback(
-    async (username: string, email: string, password: string) => {
-      signedIn(await auth.register(username, email, password));
+    async (
+      username: string,
+      email: string,
+      password: string,
+      preferences?: Partial<UserPreferences>,
+    ) => {
+      signedIn(await auth.register(username, email, password, preferences));
     },
-    [signedIn]
+    [signedIn],
   );
 
   const logout = useCallback(async () => {
@@ -131,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signedOut(
         `Signed out locally, but the server could not revoke the session: ${
           e instanceof Error ? e.message : "Unknown error"
-        }`
+        }`,
       );
     }
   }, [signedOut]);
@@ -140,7 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       return await auth.fetchWsTicket();
     } catch (e) {
-      if (auth.isUnauthorized(e)) signedOut("Your session expired. Please sign in again.");
+      if (auth.isUnauthorized(e))
+        signedOut("Your session expired. Please sign in again.");
       throw e;
     }
   }, [signedOut]);
@@ -149,9 +167,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await renew(false);
   }, [renew]);
 
+  const patchUser = useCallback(
+    (updates: Partial<User>) => {
+      setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+      auth.markSessionRotated(900);
+      schedule(900 * 1000 - RENEW_BEFORE_EXPIRY_MS);
+    },
+    [schedule],
+  );
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, notice, login, register, logout, getWsTicket, refreshUser }),
-    [status, user, notice, login, register, logout, getWsTicket, refreshUser]
+    () => ({
+      status,
+      user,
+      notice,
+      login,
+      register,
+      logout,
+      getWsTicket,
+      refreshUser,
+      patchUser,
+    }),
+    [
+      status,
+      user,
+      notice,
+      login,
+      register,
+      logout,
+      getWsTicket,
+      refreshUser,
+      patchUser,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../Providers/AuthProvider";
+import { ApiError } from "../Services/authService";
 import { Button } from "@/Components/button";
 import { Input } from "@/Components/input";
 import { Label } from "@/Components/label";
@@ -12,6 +13,18 @@ const BASE_INPUT_CLASSES =
 
 const ERROR_INPUT_CLASSES =
   "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
+
+function extractError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) {
+      return String(detail[0].msg).replace(/^Value error,\s*/i, "");
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 export function SignUpPage() {
   const { register } = useAuth();
@@ -34,7 +47,7 @@ export function SignUpPage() {
 
   const handleInput = (
     field: "username" | "email" | "password" | "confirmPassword",
-    value: string
+    value: string,
   ) => {
     if (field === "username") setUsername(value);
     if (field === "email") setEmail(value);
@@ -47,7 +60,12 @@ export function SignUpPage() {
 
   const validate = () => {
     let isValid = true;
-    const errors = { username: "", email: "", password: "", confirmPassword: "" };
+    const errors = {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    };
 
     if (!username.trim()) {
       errors.username = "Name is required.";
@@ -76,7 +94,8 @@ export function SignUpPage() {
       errors.password = "Password must contain at least one capital letter.";
       isValid = false;
     } else if (!/[!@#$%^&*]/.test(password)) {
-      errors.password = "Password must contain at least one special character (!@#$%^&*).";
+      errors.password =
+        "Password must contain at least one special character (!@#$%^&*).";
       isValid = false;
     } else if (/[()]/.test(password)) {
       errors.password = "Password must not contain parentheses.";
@@ -103,12 +122,7 @@ export function SignUpPage() {
       await register(username.trim(), email.trim(), password);
       navigate("/Home");
     } catch (err: unknown) {
-      const errorMessage = axios.isAxiosError(err)
-        ? err.response?.data?.detail ?? err.message
-        : err instanceof Error
-          ? err.message
-          : "Sign up failed";
-      setFormError(typeof errorMessage === "string" ? errorMessage : "Sign up failed");
+      setFormError(extractError(err, "Sign up failed"));
     } finally {
       setBusy(false);
     }
@@ -145,7 +159,11 @@ export function SignUpPage() {
       </section>
 
       <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
-        <form className="w-full max-w-[560px] flex flex-col gap-6" onSubmit={submit} noValidate>
+        <form
+          className="w-full max-w-[560px] flex flex-col gap-6"
+          onSubmit={submit}
+          noValidate
+        >
           <div>
             <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
               Create an Account

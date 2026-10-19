@@ -11,18 +11,30 @@ interface Props {
   onToggleMatch: () => void;
 }
 
-export function Scoreboard({ teams, events, matchTime, running, status, detail, onToggleMatch }: Props) {
-  const homeTeam = teams[0] || "Arsenal";
-  const awayTeam = teams[1] || "Chelsea";
+export function Scoreboard({
+  teams,
+  events,
+  matchTime,
+  running,
+  status,
+  detail,
+  onToggleMatch,
+}: Props) {
+  const homeTeam = teams[0] || "North London Red";
+  const awayTeam = teams[1] || "London Warriors";
 
-  const homeGoals = events.filter((e) => e.type === "goal" && e.team === homeTeam).length;
-  const awayGoals = events.filter((e) => e.type === "goal" && e.team === awayTeam).length;
+  const homeGoals = events.filter(
+    (e) => e.type === "goal" && e.team === homeTeam,
+  ).length;
+  const awayGoals = events.filter(
+    (e) => e.type === "goal" && e.team === awayTeam,
+  ).length;
 
   const homeRedCards = events.filter(
-    (e) => e.type === "card" && e.card_color === "red" && e.team === homeTeam
+    (e) => e.type === "card" && e.card_color === "red" && e.team === homeTeam,
   ).length;
   const awayRedCards = events.filter(
-    (e) => e.type === "card" && e.card_color === "red" && e.team === awayTeam
+    (e) => e.type === "card" && e.card_color === "red" && e.team === awayTeam,
   ).length;
 
   const formatTime = (seconds: number) => {
@@ -40,13 +52,18 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
 
   return (
     <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-lg grid grid-cols-2 gap-y-3 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
-      
       {/* Home Team */}
       <div className="flex items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end order-1 min-w-0">
         {homeRedCards > 0 && (
-          <div className="flex gap-1 shrink-0" title={`${homeRedCards} Red Card(s)`}>
+          <div
+            className="flex gap-1 shrink-0"
+            title={`${homeRedCards} Red Card(s)`}
+          >
             {Array.from({ length: homeRedCards }).map((_, i) => (
-              <span key={i} className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs" />
+              <span
+                key={i}
+                className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs"
+              />
             ))}
           </div>
         )}
@@ -61,10 +78,15 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
 
       {/* Timer and Controls */}
       <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-3 md:pt-0 shrink-0 md:px-8 md:min-w-[200px]">
-        <div className="flex items-center gap-2 mb-1" title={detail || undefined}>
+        <div
+          className="flex items-center gap-2 mb-1"
+          title={detail || undefined}
+        >
           <div
             className={`w-1.5 h-1.5 rounded-full ${
-              status === "live" ? "bg-emerald-500 animate-pulse" : "bg-slate-500"
+              status === "live"
+                ? "bg-emerald-500 animate-pulse"
+                : "bg-slate-500"
             }`}
           />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -105,14 +127,19 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
           {awayTeam}
         </span>
         {awayRedCards > 0 && (
-          <div className="flex gap-1 shrink-0" title={`${awayRedCards} Red Card(s)`}>
+          <div
+            className="flex gap-1 shrink-0"
+            title={`${awayRedCards} Red Card(s)`}
+          >
             {Array.from({ length: awayRedCards }).map((_, i) => (
-              <span key={i} className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs" />
+              <span
+                key={i}
+                className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs"
+              />
             ))}
           </div>
         )}
       </div>
-
     </div>
   );
 }
