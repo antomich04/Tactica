@@ -42,6 +42,12 @@ async def resume_simulation(request: Request, user: dict = Depends(get_current_u
     return broadcaster.resume_match()
 
 
+@router.get("/status")
+@limiter.limit("30/minute")
+async def match_status(request: Request, user: dict = Depends(get_current_user)):
+    return broadcaster.get_match_status()
+
+
 @router.post("/stop")
 @limiter.limit("10/minute")
 async def stop_simulation(request: Request, user: dict = Depends(get_current_user)):

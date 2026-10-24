@@ -113,6 +113,8 @@ export type MatchMetrics = {
   away_control?: number;
   controlling_team?: string | null;
   recent_events_count?: number;
+  paused?: boolean;
+  halftime_pause?: boolean;
   momentum?: MomentumPoint;
 };
 

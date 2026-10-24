@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from agent_framework import Executor, WorkflowContext, handler
 from agent_framework.openai import OpenAIChatClient
 from agents.state import PersonalizedOverlay, TacticaGraphState, VerificationResult
-from models.Overlays import Overlay
+from models.Overlays import Overlay, OverlayType
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class LocalizerExecutor(Executor):
                 match_id=state.moment.match_id,
                 timestamp=state.moment.timestamp,
                 duration=8.0,
-                type=state.director.overlay_type,
+                type=OverlayType(state.director.overlay_type),
                 priority=state.director.priority,
                 language=user_ctx.language,
                 persona=user_ctx.persona,

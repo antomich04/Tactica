@@ -13,7 +13,15 @@ class UserContext(BaseModel):
 
 class DirectorDecision(BaseModel):
     route: Literal["skip", "fast_narrator", "deep_analyst"]
-    overlay_type: OverlayType
+    overlay_type: Literal[
+        OverlayType.MOMENTUM_SHIFT,
+        OverlayType.PLAYER_TAG,
+        OverlayType.SHOT_SPEED,
+        OverlayType.GOAL,
+        OverlayType.CARD,
+        OverlayType.MILESTONE,
+        OverlayType.RECAP_ITEM,
+    ]
     priority: int = Field(default=1, ge=1, le=5)
     rationale: str
 

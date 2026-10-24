@@ -10,6 +10,7 @@ import { EventFeed } from "../Components/EventFeed";
 import { LivePitch } from "../Components/LivePitch";
 import { MomentumGraph } from "../Components/MomentumGraph";
 import { MatchStats } from "../Components/MatchStats";
+import { MatchLineups } from "../Components/MatchLineups";
 import { openLiveStream } from "../Services/streamService";
 import type {
   ClubTeam,
@@ -101,6 +102,9 @@ export function MatchPage({ getWsTicket }: Props) {
 
       if (env.metrics) {
         setLatestMetrics(env.metrics);
+        if (env.metrics.halftime_pause || env.metrics.paused) {
+          setPaused(true);
+        }
       }
     } else if (env.kind === "overlay") {
       const overlayData = env.data;
@@ -292,7 +296,12 @@ export function MatchPage({ getWsTicket }: Props) {
       <main className="flex flex-col gap-6 flex-1 min-h-0 lg:grid lg:grid-cols-[1fr_450px] xl:grid-cols-[1fr_500px] lg:items-stretch lg:gap-4">
         <section className="flex flex-col gap-4 min-w-0">
           <div className="relative w-full flex justify-center shrink-0">
-            <LivePitch events={events} colorOf={colorOf} />
+            <LivePitch
+              events={events}
+              colorOf={colorOf}
+              homeTeam={dbTeams[0]}
+              awayTeam={dbTeams[1]}
+            />
             {!events.length && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs z-20 rounded-xl border border-slate-600 max-w-[700px] mx-auto">
                 <p className="text-slate-300 font-bold tracking-wide text-sm">
@@ -315,6 +324,13 @@ export function MatchPage({ getWsTicket }: Props) {
           </div>
 
           <MatchStats events={events} teams={teams} colorOf={colorOf} />
+          {dbTeams[0] && dbTeams[1] && (
+            <MatchLineups
+              homeTeam={dbTeams[0]}
+              awayTeam={dbTeams[1]}
+              events={events}
+            />
+          )}
         </section>
 
         <div className="bg-slate-900 border border-slate-600 rounded-xl overflow-hidden shadow-lg h-[500px] lg:h-auto lg:max-h-[1150px] flex flex-col">

@@ -128,6 +128,12 @@ function parseMetrics(value: unknown, momentumValue?: unknown): MatchMetrics | u
     if (isFiniteNumber(value.recent_events_count)) {
       metrics.recent_events_count = value.recent_events_count;
     }
+    if (typeof value.paused === "boolean") {
+      metrics.paused = value.paused;
+    }
+    if (typeof value.halftime_pause === "boolean") {
+      metrics.halftime_pause = value.halftime_pause;
+    }
   }
 
   const momentum = parseMomentum(momentumValue);
