@@ -68,10 +68,10 @@ export function SignUpPage() {
     };
 
     if (!username.trim()) {
-      errors.username = "Name is required.";
+      errors.username = "Username is required.";
       isValid = false;
     } else if (username.trim().length < 3 || username.trim().length > 64) {
-      errors.username = "Name must be between 3 and 64 characters.";
+      errors.username = "Username must be between 3 and 64 characters.";
       isValid = false;
     }
 
@@ -178,14 +178,14 @@ export function SignUpPage() {
               htmlFor="username"
               className={`text-lg font-semibold ${fieldErrors.username ? "text-red-500" : "text-white"}`}
             >
-              Name
+              Username
             </Label>
             <Input
               id="username"
               type="text"
               value={username}
               onChange={(e) => handleInput("username", e.target.value)}
-              placeholder="Enter your name"
+              placeholder="Enter your username"
               autoComplete="username"
               className={`${BASE_INPUT_CLASSES} ${fieldErrors.username ? ERROR_INPUT_CLASSES : ""}`}
               autoFocus
