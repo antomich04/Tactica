@@ -13,6 +13,7 @@ from models.Event import (
 # Safe pitch boundaries so players never render outside touchlines
 X_MIN, X_MAX = 2.0, 98.0
 Y_MIN, Y_MAX = 3.0, 97.0
+SUBBED_ON_PROTECTION_SECONDS = 900.0
 
 
 class EventSimulator(EventSource):
@@ -44,11 +45,26 @@ class EventSimulator(EventSource):
 
         self.player_yellows: dict[str, int] = {}
         self.sent_off_players: set[str] = set()
+        self.subbed_on_at: dict[str, float] = {}
 
-        # Substitution tracking (max 5 subs per team, standard Premier League rule)
+        # Schedule each team's substitutions across the second half.
         self.subs_made: dict[str, int] = {self.team_a: 0, self.team_b: 0}
         self.max_subs_per_team = 5
-        self._last_sub_time = 3000.0
+        self.substitution_targets = {
+            team: random.randint(3, self.max_subs_per_team)
+            for team in (self.team_a, self.team_b)
+        }
+        substitution_window = 5160.0 - 3300.0
+        self._substitution_schedule = {
+            team: [
+                3300.0
+                + (index + 1)
+                * substitution_window
+                / (self.substitution_targets[team] + 1)
+                for index in range(self.substitution_targets[team])
+            ]
+            for team in (self.team_a, self.team_b)
+        }
 
         self.rosters = {
             self.team_a: self._extract_roster(team_a_data, is_home=True),
@@ -86,7 +102,9 @@ class EventSimulator(EventSource):
             }
 
         starters = team_data.get("roster", {}).get("starters") or team_data.get("players") or []
-        substitutes = team_data.get("roster", {}).get("substitutes") or []
+        roster_data = team_data.get("roster", {})
+        substitutes = roster_data.get("substitutes") or []
+        substitutes = [*substitutes, *(roster_data.get("reserves") or [])]
         all_players = team_data.get("players") or starters
 
         def by_pos(source: list[dict], pos: str) -> list[str]:
@@ -196,16 +214,16 @@ class EventSimulator(EventSource):
                 yield event
 
     def _maybe_make_substitution(self, base_id: str) -> GenericMatchEvent | None:
-        """Performs realistic 2nd-half substitutions (55' to 86') using DB bench players."""
+        """Make each team's scheduled substitutions between 55' and 86'."""
         if self.match_time < 3300.0 or self.match_time > 5160.0:
-            return None
-        if (self.match_time - self._last_sub_time) < 240.0:
-            return None
-        if random.random() > 0.14:
             return None
 
         candidate_teams = [
-            t for t in (self.team_a, self.team_b) if self.subs_made[t] < self.max_subs_per_team
+            team
+            for team in (self.team_a, self.team_b)
+            if self.subs_made[team] < self.substitution_targets[team]
+            and self.match_time
+            >= self._substitution_schedule[team][self.subs_made[team]]
         ]
         if not candidate_teams:
             return None
@@ -216,24 +234,36 @@ class EventSimulator(EventSource):
 
         available_positions = [
             pos for pos in ("FWD", "MID", "DEF")
-            if bench.get(pos) and len([p for p in roster[pos] if p not in self.sent_off_players]) > 0
+            if bench.get(pos)
+            and len([
+                player
+                for player in roster[pos]
+                if player not in self.sent_off_players
+                and self.match_time - self.subbed_on_at.get(player, -SUBBED_ON_PROTECTION_SECONDS)
+                >= SUBBED_ON_PROTECTION_SECONDS
+            ]) > 0
         ]
         if not available_positions:
             return None
 
         pos = random.choice(available_positions)
-        active_candidates = [p for p in roster[pos] if p not in self.sent_off_players]
+        active_candidates = [
+            player
+            for player in roster[pos]
+            if player not in self.sent_off_players
+            and self.match_time - self.subbed_on_at.get(player, -SUBBED_ON_PROTECTION_SECONDS)
+            >= SUBBED_ON_PROTECTION_SECONDS
+        ]
         player_off = random.choice(active_candidates)
         player_on = bench[pos].pop(0)
 
         # Swap on-pitch player with bench substitute
         roster[pos].remove(player_off)
         roster[pos].append(player_on)
+        self.subbed_on_at[player_on] = self.match_time
         if self.current_player == player_off:
             self.current_player = player_on
-
         self.subs_made[sub_team] += 1
-        self._last_sub_time = self.match_time
 
         return GenericMatchEvent(
             id=f"{base_id}_sub",

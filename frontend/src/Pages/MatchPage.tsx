@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { BookOpenText, LoaderCircle } from "lucide-react";
 import { api, ApiError } from "../Services/authService";
 import { fetchAllTeams, fetchNextMatch } from "../Services/teamsService";
 import { readSavedMatchup } from "../Services/matchupStorage";
@@ -58,6 +59,7 @@ export function MatchPage({ getWsTicket }: Props) {
   const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
   const [matchRecap, setMatchRecap] = useState<MatchRecap | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
+  const [showMatchRecap, setShowMatchRecap] = useState(false);
 
   useEffect(() => {
     if (hasSelectedMatchup) return;
@@ -181,6 +183,7 @@ export function MatchPage({ getWsTicket }: Props) {
       ) {
         return;
       }
+      setShowMatchRecap(false);
       setMatchSummary(env.data);
       setRecapLoading(true);
       setMatchRecap((current) =>
@@ -372,7 +375,7 @@ export function MatchPage({ getWsTicket }: Props) {
 
   const isRunning = streamActive && !paused;
 
-  if (matchSummary) {
+  if (matchSummary && showMatchRecap && !recapLoading) {
     return (
       <MatchRecapView
         summary={matchSummary}
@@ -380,6 +383,7 @@ export function MatchPage({ getWsTicket }: Props) {
         recapLoading={recapLoading}
         onRestart={() => void toggleMatch()}
         onBackToSelection={() => navigate("/home")}
+        onClose={() => setShowMatchRecap(false)}
       />
     );
   }
@@ -395,13 +399,36 @@ export function MatchPage({ getWsTicket }: Props) {
           awayColor={awayColor}
           running={isRunning}
           paused={paused}
-          finished={now >= 5400 || matchStopped}
+          finished={Boolean(matchSummary) || now >= 5400 || matchStopped}
           status={paused ? "idle" : status}
           detail={paused ? "PAUSED" : detail}
           onToggleMatch={toggleMatch}
           onStopMatch={stopMatch}
         />
       </div>
+
+      {matchSummary && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowMatchRecap(true)}
+            disabled={recapLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white transition hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-70"
+          >
+            {recapLoading ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Preparing recap
+              </>
+            ) : (
+              <>
+                <BookOpenText className="h-4 w-4" />
+                Watch recap
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       <main className="flex flex-col gap-6 flex-1 min-h-0 lg:grid lg:grid-cols-[1fr_450px] xl:grid-cols-[1fr_500px] lg:items-stretch lg:gap-4">
         <section className="flex flex-col gap-4 min-w-0">

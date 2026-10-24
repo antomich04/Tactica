@@ -1,4 +1,4 @@
-import { ArrowLeft, LoaderCircle, RotateCcw, Trophy } from "lucide-react";
+import { ArrowLeft, LoaderCircle, RotateCcw, Trophy, X } from "lucide-react";
 import type { MatchRecap, MatchSummary } from "../types";
 
 type Props = {
@@ -7,6 +7,7 @@ type Props = {
   recapLoading: boolean;
   onRestart: () => void;
   onBackToSelection: () => void;
+  onClose: () => void;
 };
 
 export function MatchRecap({
@@ -15,6 +16,7 @@ export function MatchRecap({
   recapLoading,
   onRestart,
   onBackToSelection,
+  onClose,
 }: Props) {
   const result =
     summary.home_score === summary.away_score
@@ -113,6 +115,14 @@ export function MatchRecap({
         </div>
 
         <footer className="flex flex-col-reverse gap-3 border-t border-slate-700 p-6 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-3 font-semibold text-slate-200 transition hover:bg-slate-800"
+          >
+            <X className="h-4 w-4" />
+            Close recap
+          </button>
           <button
             type="button"
             onClick={onBackToSelection}

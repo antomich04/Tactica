@@ -55,6 +55,7 @@ class MatchBroadcaster:
         self.overlay_user_subs: Dict[WebSocket, str] = {}
         self._running_task: asyncio.Task | None = None
         self._agent_tasks: Set[asyncio.Task] = set()
+        self._pending_high_priority_moments: set[str] = set()
         self._match_events: list[MatchEvent] = []
         self._final_summary: MatchSummary | None = None
         self._final_recaps: Dict[tuple[str, str], MatchRecapMessage] = {}
@@ -406,9 +407,10 @@ class MatchBroadcaster:
                     )
                     fast_overlay = moment_to_fast_overlay(moment)
                     fast_overlay.meta["tier"] = "fast_template"
-                    await self._paced_broadcast_overlay(
-                        fast_overlay, is_critical=is_crit
-                    )
+                    if not self._pending_high_priority_moments or is_crit:
+                        await self._paced_broadcast_overlay(
+                            fast_overlay, is_critical=is_crit
+                        )
 
                     if self.overlay_user_contexts:
                         snapshot = capture_analysis_snapshot(
@@ -421,13 +423,19 @@ class MatchBroadcaster:
                         }
                         user_contexts = list(unique_contexts.values())
 
+                        if is_crit:
+                            self._pending_high_priority_moments.add(moment.id)
                         task = asyncio.create_task(
                             self._run_agent_crew(
                                 moment, snapshot, user_contexts, moment_recipients
                             )
                         )
                         self._agent_tasks.add(task)
-                        task.add_done_callback(self._agent_tasks.discard)
+                        task.add_done_callback(
+                            lambda completed, moment_id=moment.id: self._agent_task_done(
+                                completed, moment_id
+                            )
+                        )
                 else:
                     supp_overlay = self._check_supplementary_overlay(event, metrics)
                     if supp_overlay:
@@ -436,9 +444,10 @@ class MatchBroadcaster:
                             OverlayType.YELLOW_CARD,
                             OverlayType.SUBSTITUTION,
                         )
-                        await self._paced_broadcast_overlay(
-                            supp_overlay, is_critical=is_crit_supp
-                        )
+                        if not self._pending_high_priority_moments or is_crit_supp:
+                            await self._paced_broadcast_overlay(
+                                supp_overlay, is_critical=is_crit_supp
+                            )
         except asyncio.CancelledError:
             logger.info("Match simulation loop cancelled cleanly.")
         else:
@@ -761,6 +770,19 @@ class MatchBroadcaster:
 
             except Exception as e:
                 logger.exception(f"Agent crew failed on moment {moment.id}: {e}")
+
+    def _agent_task_done(self, task: asyncio.Task, moment_id: str) -> None:
+        self._agent_tasks.discard(task)
+        self._pending_high_priority_moments.discard(moment_id)
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logger.error(
+                    "Agent crew task failed for moment %s: %s",
+                    moment_id,
+                    error,
+                    exc_info=(type(error), error, error.__traceback__),
+                )
 
     async def _broadcast_overlay_to_profile(
         self,
