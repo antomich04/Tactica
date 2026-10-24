@@ -2,12 +2,13 @@ import os
 from dotenv import load_dotenv
 from agent_framework import WorkflowBuilder
 from agent_framework.openai import OpenAIChatClient
-from agents.state import TacticaGraphState
+from agents.state import MatchRecapWorkflowState, TacticaGraphState
 from agents.director.node import DirectorExecutor
 from agents.analyst.node import AnalystExecutor
 from agents.narrator.node import NarratorExecutor
 from agents.verifier.node import VerifierExecutor
 from agents.localizer.node import LocalizerExecutor
+from agents.summarizer.node import MatchRecapVerifierExecutor, MatchSummarizerExecutor
 
 load_dotenv()
 
@@ -82,6 +83,22 @@ def build_tactica_workflow():
         condition=lambda s: isinstance(s, TacticaGraphState)
         and s.verification is not None
         and s.verification.is_verified,
+    )
+
+    return builder.build()
+
+
+def build_match_recap_workflow():
+    client = _get_openai_client()
+    summarizer = MatchSummarizerExecutor(client)
+    verifier = MatchRecapVerifierExecutor()
+
+    builder = WorkflowBuilder(start_executor=summarizer)
+    builder.max_iterations = 3
+    builder.add_edge(
+        summarizer,
+        verifier,
+        condition=lambda state: isinstance(state, MatchRecapWorkflowState),
     )
 
     return builder.build()

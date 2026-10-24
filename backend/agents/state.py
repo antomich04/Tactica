@@ -1,6 +1,7 @@
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 from models.Moment import Moment
+from models.MatchRecap import MatchRecapDraft, MatchSummary
 from models.Overlays import Overlay, OverlayType, PersonaType
 
 LanguageType = Literal["en", "es", "pt", "gr"]
@@ -55,3 +56,10 @@ class TacticaGraphState(BaseModel):
     verification: Optional[VerificationResult] = None
     revision_count: int = 0
     trace: List[str] = Field(default_factory=list)
+
+
+class MatchRecapWorkflowState(BaseModel):
+    summary: MatchSummary
+    user_context: UserContext
+    draft: Optional[MatchRecapDraft] = None
+    verification: Optional[VerificationResult] = None

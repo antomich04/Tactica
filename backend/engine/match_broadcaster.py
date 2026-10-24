@@ -12,9 +12,12 @@ from engine.overlay_generator import moment_to_fast_overlay
 from engine.momentum_tracker import MomentumTracker
 from models.Event import MatchEvent, EventType, CardColor
 from models.Moment import Moment, MomentCategory
+from models.MatchRecap import MatchRecapKeyEvent, MatchRecapMessage, MatchRecapStats, MatchSummary
 from models.Overlays import Overlay, OverlayType, PersonaType
-from agents.graph import build_tactica_workflow
-from agents.state import PersonalizedOverlay, TacticaGraphState, UserContext
+from agents.graph import build_match_recap_workflow, build_tactica_workflow
+from agents.state import MatchRecapWorkflowState, PersonalizedOverlay, TacticaGraphState, UserContext
+from agents.summarizer.node import build_fallback_match_recap
+from services.match_recap_service import save_match_recap_record
 from agents.analyst.tools import (
     MatchAnalysisSnapshot,
     capture_analysis_snapshot,
@@ -25,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 MIN_OVERLAY_READ_SECONDS = 2.2
 CONTROL_MOMENT_COOLDOWN_MATCH_SECONDS = 420.0
+MATCH_RECAP_AGENT_TIMEOUT_SECONDS = 20.0
 
 
 class MatchBroadcaster:
@@ -44,31 +48,101 @@ class MatchBroadcaster:
         self._pause_event.set()  # Unpaused by default
 
         self.event_subscribers: Set[WebSocket] = set()
+        self.event_user_contexts: Dict[WebSocket, UserContext] = {}
+        self.event_user_subs: Dict[WebSocket, str] = {}
         self.overlay_subscribers: Set[WebSocket] = set()
         self.overlay_user_contexts: Dict[WebSocket, UserContext] = {}
+        self.overlay_user_subs: Dict[WebSocket, str] = {}
         self._running_task: asyncio.Task | None = None
         self._agent_tasks: Set[asyncio.Task] = set()
+        self._match_events: list[MatchEvent] = []
+        self._final_summary: MatchSummary | None = None
+        self._final_recaps: Dict[tuple[str, str], MatchRecapMessage] = {}
 
-    async def register_event_client(self, websocket: WebSocket):
-        self.event_subscribers.add(websocket)
-
-    def unregister_event_client(self, websocket: WebSocket):
-        self.event_subscribers.discard(websocket)
-
-    async def register_overlay_client(self, websocket: WebSocket, user: dict | None = None):
-        self.overlay_subscribers.add(websocket)
-        from models.Overlays import PersonaType
+    def _build_user_context(self, user: dict | None) -> UserContext:
         raw_persona = user.get("persona", "casual") if user else "casual"
-        self.overlay_user_contexts[websocket] = UserContext(
-            persona=PersonaType(raw_persona) if raw_persona in PersonaType._value2member_map_ else PersonaType.CASUAL,
+        return UserContext(
+            persona=PersonaType(raw_persona)
+            if raw_persona in PersonaType._value2member_map_
+            else PersonaType.CASUAL,
             language=user.get("lang", "en") if user else "en",
             favorite_club=user.get("team") if user else None,
             player_lock=user.get("player_lock") if user else None,
         )
 
+    async def register_event_client(self, websocket: WebSocket, user: dict | None = None):
+        self.event_subscribers.add(websocket)
+        self.event_user_contexts[websocket] = self._build_user_context(user)
+        if user and user.get("sub") is not None:
+            self.event_user_subs[websocket] = str(user["sub"])
+        if self._final_summary is not None:
+            await self._send_final_state(
+                websocket,
+                self.event_user_contexts[websocket],
+                self.event_user_subs.get(websocket),
+            )
+
+    def unregister_event_client(self, websocket: WebSocket):
+        self.event_subscribers.discard(websocket)
+        self.event_user_contexts.pop(websocket, None)
+        self.event_user_subs.pop(websocket, None)
+
+    async def register_overlay_client(self, websocket: WebSocket, user: dict | None = None):
+        self.overlay_subscribers.add(websocket)
+        self.overlay_user_contexts[websocket] = self._build_user_context(user)
+        if user and user.get("sub") is not None:
+            self.overlay_user_subs[websocket] = str(user["sub"])
+
+        if self._final_summary is not None:
+            await self._send_final_state(
+                websocket,
+                self.overlay_user_contexts[websocket],
+                self.overlay_user_subs.get(websocket),
+            )
+
     def unregister_overlay_client(self, websocket: WebSocket):
         self.overlay_subscribers.discard(websocket)
         self.overlay_user_contexts.pop(websocket, None)
+        self.overlay_user_subs.pop(websocket, None)
+
+    async def _send_final_state(
+        self,
+        websocket: WebSocket,
+        user_context: UserContext,
+        user_sub: str | None,
+    ) -> None:
+        if self._final_summary is None:
+            return
+
+        await websocket.send_json(
+            {
+                "kind": "match_ended",
+                "data": self._final_summary.model_dump(mode="json"),
+            }
+        )
+        recap = self._final_recaps.get(
+            (self._final_summary.match_id, user_sub or "")
+        )
+        if recap is None:
+            recap = build_fallback_match_recap(self._final_summary, user_context)
+            if user_sub is not None:
+                self._final_recaps[(self._final_summary.match_id, user_sub)] = recap
+                try:
+                    await save_match_recap_record(
+                        self._final_summary.match_id,
+                        user_sub,
+                        self._final_summary.model_dump(mode="json"),
+                        recap.model_dump(mode="json"),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Could not persist reconnect recap for match %s and user %s.",
+                        self._final_summary.match_id,
+                        user_sub,
+                    )
+        await websocket.send_json(
+            {"kind": "match_recap", "data": recap.model_dump(mode="json")}
+        )
 
     async def start_match(
         self,
@@ -99,6 +173,9 @@ class MatchBroadcaster:
         self._pause_event.set()
         self._last_overlay_sent_mono = 0.0
         self._last_control_overlay_match_time = -999.0
+        self._match_events = []
+        self._final_summary = None
+        self._final_recaps = {}
 
         self.simulator = EventSimulator(
             team_a_data=home_team,
@@ -165,6 +242,8 @@ class MatchBroadcaster:
             "paused": paused,
             "halftime_pause": bool(self.simulator and self.simulator.is_halftime_pause),
             "match_time": self.simulator.match_time if self.simulator else 0.0,
+            "match_ended": self._final_summary is not None,
+            "summary": self._final_summary.model_dump(mode="json") if self._final_summary else None,
         }
 
     async def stop_match(self) -> dict:
@@ -288,6 +367,7 @@ class MatchBroadcaster:
     async def _run_loop(self):
         try:
             async for event in self.simulator.stream_events():
+                self._match_events.append(event)
                 metrics = self.stats_engine.process_event(event)
                 momentum_data = self.momentum_tracker.update(event)
                 moment = self.moment_detector.evaluate(event, metrics)
@@ -361,6 +441,289 @@ class MatchBroadcaster:
                         )
         except asyncio.CancelledError:
             logger.info("Match simulation loop cancelled cleanly.")
+        else:
+            if self.simulator and self.simulator.match_time >= self.simulator.full_time:
+                await self._finish_match()
+
+    def _build_match_summary(self) -> MatchSummary:
+        if not self.simulator:
+            raise RuntimeError("Cannot build a match summary without an active simulator.")
+
+        goals = [event for event in self._match_events if event.type == EventType.GOAL]
+        home_score = sum(event.team == self.simulator.team_a for event in goals)
+        away_score = sum(event.team == self.simulator.team_b for event in goals)
+        shots = [event for event in self._match_events if event.type == EventType.SHOT]
+        passes = [event for event in self._match_events if event.type == EventType.PASS]
+        cards = [event for event in self._match_events if event.type == EventType.CARD]
+
+        def enum_value(value) -> str:
+            return value.value if hasattr(value, "value") else str(value)
+
+        def team_stats(team_name: str) -> MatchRecapStats:
+            team_shots = [event for event in shots if event.team == team_name]
+            team_passes = [event for event in passes if event.team == team_name]
+            team_cards = [event for event in cards if event.team == team_name]
+            return MatchRecapStats(
+                shots=len(team_shots),
+                shots_on_target=sum(
+                    enum_value(getattr(event, "outcome", "")) in ("goal", "saved")
+                    for event in team_shots
+                ),
+                passes_attempted=len(team_passes),
+                passes_completed=sum(
+                    enum_value(getattr(event, "outcome", "")) == "completed"
+                    for event in team_passes
+                ),
+                corners=sum(
+                    event.type == EventType.CORNER and event.team == team_name
+                    for event in self._match_events
+                ),
+                yellow_cards=sum(
+                    getattr(event, "card_color", None) == CardColor.YELLOW
+                    for event in team_cards
+                ),
+                red_cards=sum(
+                    getattr(event, "card_color", None) == CardColor.RED
+                    for event in team_cards
+                ),
+            )
+
+        stats = {
+            "home": team_stats(self.simulator.team_a),
+            "away": team_stats(self.simulator.team_b),
+        }
+
+        key_events: list[MatchRecapKeyEvent] = []
+        for event in self._match_events:
+            if event.type == EventType.GOAL:
+                details = f"Goal by {getattr(event, 'scorer', event.player)}"
+            elif event.type == EventType.CARD:
+                details = f"{enum_value(event.card_color).title()} card"
+                reason = getattr(event, "reason", None)
+                if reason:
+                    details += f": {reason}"
+            elif event.type == EventType.PENALTY:
+                details = "Penalty"
+            elif event.type == EventType.SUBSTITUTION:
+                details = getattr(event, "details", None) or "Substitution"
+            elif (
+                event.type == EventType.SAVE
+                and (getattr(event, "difficulty", 0.0) or 0.0) >= 0.72
+            ):
+                details = "Important save"
+            else:
+                continue
+
+            key_events.append(
+                MatchRecapKeyEvent(
+                    type=enum_value(event.type),
+                    timestamp=event.timestamp,
+                    team=event.team,
+                    player=event.player,
+                    details=details,
+                )
+            )
+
+        key_events = key_events[-12:]
+        return MatchSummary(
+            match_id=self.simulator.match_id,
+            home_team=self.simulator.team_a,
+            away_team=self.simulator.team_b,
+            home_score=home_score,
+            away_score=away_score,
+            match_time=self.simulator.full_time,
+            stats=stats,
+            key_events=key_events,
+        )
+
+    async def _finish_match(self):
+        if self._final_summary is not None:
+            return
+
+        self._final_summary = self._build_match_summary()
+        recipients = {
+            **self.event_user_contexts,
+            **self.overlay_user_contexts,
+        }
+        user_subs = {**self.event_user_subs, **self.overlay_user_subs}
+        summary_payload = self._final_summary.model_dump(mode="json")
+
+        # Show full time immediately while personalized recaps are generated.
+        await self._broadcast_json(
+            self.event_subscribers,
+            {
+                "kind": "match_ended",
+                "data": summary_payload,
+            },
+        )
+
+        # 1. Run the AI Match Recap workflow so we store the AI recap (not the fallback)
+        unique_contexts = {
+            context.model_dump_json(): context for context in recipients.values()
+        }
+        if recipients and unique_contexts:
+            try:
+                # Await directly here instead of background task so the DB stores the AI output immediately
+                await asyncio.wait_for(
+                    self._run_match_recap(
+                        self._final_summary, list(unique_contexts.values()), recipients, persist_only=True
+                    ),
+                    timeout=20.0,
+                )
+            except Exception:
+                logger.exception(
+                    "AI match recap generation timed out or failed for match %s; falling back.",
+                    self._final_summary.match_id,
+                )
+
+        # 2. Ensure public record and any missing user subs have at least a fallback
+        try:
+            default_recap = build_fallback_match_recap(
+                self._final_summary, UserContext()
+            )
+            await save_match_recap_record(
+                self._final_summary.match_id,
+                "__public__",
+                summary_payload,
+                default_recap.model_dump(mode="json"),
+            )
+        except Exception:
+            logger.exception(
+                "Could not persist public final summary for match %s.",
+                self._final_summary.match_id,
+            )
+
+        contexts_by_sub = {
+            user_subs[websocket]: context
+            for websocket, context in recipients.items()
+            if websocket in user_subs
+        }
+        for user_sub, user_context in contexts_by_sub.items():
+            if (self._final_summary.match_id, user_sub) not in self._final_recaps:
+                fallback = build_fallback_match_recap(self._final_summary, user_context)
+                self._final_recaps[(self._final_summary.match_id, user_sub)] = fallback
+                try:
+                    await save_match_recap_record(
+                        self._final_summary.match_id,
+                        user_sub,
+                        summary_payload,
+                        fallback.model_dump(mode="json"),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Could not persist final recap fallback for match %s and user %s.",
+                        self._final_summary.match_id,
+                        user_sub,
+                    )
+
+        # 3. Broadcast final AI recaps over WebSockets
+        if recipients:
+            for user_context in unique_contexts.values():
+                recap = self._final_recaps.get(
+                    (self._final_summary.match_id, list(user_subs.values())[0] if user_subs else "")
+                )
+                if recap:
+                    await self._broadcast_match_recap(recap, user_context, recipients)
+
+    async def _run_match_recap(
+        self,
+        summary: MatchSummary,
+        user_contexts: list[UserContext],
+        recipients: Dict[WebSocket, UserContext],
+        persist_only: bool = False,
+    ):
+        async def generate(user_context: UserContext) -> MatchRecapMessage:
+            try:
+                workflow = build_match_recap_workflow()
+                result = await workflow.run(
+                    MatchRecapWorkflowState(
+                        summary=summary,
+                        user_context=user_context,
+                    )
+                )
+                recaps = result.get_outputs()
+                if recaps:
+                    return recaps[0]
+            except Exception:
+                logger.exception(
+                    "Match recap workflow failed for match %s and persona %s/%s.",
+                    summary.match_id,
+                    user_context.persona.value,
+                    user_context.language,
+                )
+            return build_fallback_match_recap(summary, user_context)
+
+        results = await asyncio.gather(
+            *(generate(user_context) for user_context in user_contexts),
+            return_exceptions=True,
+        )
+
+        for user_context, result in zip(user_contexts, results):
+            if isinstance(result, BaseException):
+                recap = build_fallback_match_recap(summary, user_context)
+            else:
+                recap = result
+
+            for websocket, recipient_context in recipients.items():
+                if recipient_context != user_context:
+                    continue
+                user_sub = (
+                    self.overlay_user_subs.get(websocket)
+                    or self.event_user_subs.get(websocket)
+                )
+                if user_sub is None:
+                    continue
+                self._final_recaps[(summary.match_id, user_sub)] = recap
+                try:
+                    await save_match_recap_record(
+                        summary.match_id,
+                        user_sub,
+                        summary.model_dump(mode="json"),
+                        recap.model_dump(mode="json"),
+                    )
+                except Exception:
+                    logger.exception(
+                        "Could not persist final recap for match %s and user %s.",
+                        summary.match_id,
+                        user_sub,
+                    )
+
+            if not persist_only:
+                await self._broadcast_match_recap(recap, user_context, recipients)
+
+    async def _broadcast_match_recap(
+        self,
+        recap: MatchRecapMessage,
+        user_context: UserContext,
+        recipients: Dict[WebSocket, UserContext],
+    ):
+        async with self._overlay_send_lock:
+            sent_user_subs: set[str] = set()
+            for websocket, recipient_context in recipients.items():
+                connected_context = self.overlay_user_contexts.get(
+                    websocket, self.event_user_contexts.get(websocket)
+                )
+                if connected_context != user_context:
+                    continue
+                user_sub = (
+                    self.overlay_user_subs.get(websocket)
+                    or self.event_user_subs.get(websocket)
+                )
+                if user_sub is not None and user_sub in sent_user_subs:
+                    continue
+                try:
+                    await websocket.send_json(
+                        {"kind": "match_recap", "data": recap.model_dump(mode="json")}
+                    )
+                    if user_sub is not None:
+                        sent_user_subs.add(user_sub)
+                except Exception:
+                    logger.debug(
+                        "Removing disconnected match recap client.",
+                        exc_info=True,
+                    )
+                    self.unregister_overlay_client(websocket)
+                    self.unregister_event_client(websocket)
 
     async def _run_agent_crew(
         self,

@@ -101,6 +101,45 @@ export type Overlay = {
   meta: Record<string, unknown>;
 };
 
+export type MatchRecapKeyEvent = {
+  type: string;
+  timestamp: number;
+  team: string;
+  player: string;
+  details?: string | null;
+};
+
+export type MatchRecapTeamStats = {
+  shots: number;
+  shots_on_target: number;
+  passes_attempted: number;
+  passes_completed: number;
+  corners: number;
+  yellow_cards: number;
+  red_cards: number;
+};
+
+export type MatchSummary = {
+  match_id: string;
+  home_team: string;
+  away_team: string;
+  home_score: number;
+  away_score: number;
+  match_time: number;
+  stats: {
+    home: MatchRecapTeamStats;
+    away: MatchRecapTeamStats;
+  };
+  key_events: MatchRecapKeyEvent[];
+};
+
+export type MatchRecap = {
+  match_id: string;
+  language: string;
+  persona: string;
+  text: string;
+};
+
 export type MomentumPoint = {
   timestamp: number;
   score: number; // Positive favors the home team; negative favors the away team.
@@ -125,7 +164,9 @@ export type Envelope =
       metrics?: MatchMetrics;
       momentum?: MomentumPoint;
     }
-  | { kind: "overlay"; data: Overlay };
+    | { kind: "overlay"; data: Overlay }
+    | { kind: "match_ended"; data: MatchSummary }
+    | { kind: "match_recap"; data: MatchRecap };
 
 export type PlayerRole =
   | "GK"
