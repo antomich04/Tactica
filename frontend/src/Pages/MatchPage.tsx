@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { api, ApiError } from "../Services/authService";
-import { fetchNextMatch } from "../Services/teamsService";
+import { fetchAllTeams, fetchNextMatch } from "../Services/teamsService";
+import { readSavedMatchup } from "../Services/matchupStorage";
 import { Scoreboard } from "../Components/Scoreboard";
 import { ActiveOverlay } from "../Components/ActiveOverlay";
 import { EventFeed } from "../Components/EventFeed";
@@ -48,9 +49,38 @@ export function MatchPage({ getWsTicket }: Props) {
 
   useEffect(() => {
     if (dbTeams[0] && dbTeams[1]) return;
-    fetchNextMatch()
-      .then((res) => setDbTeams([res.home_team, res.away_team]))
-      .catch(() => {});
+    let active = true;
+    const savedMatchup = readSavedMatchup();
+
+    const loadMatchup = async () => {
+      if (savedMatchup) {
+        try {
+          const teams = await fetchAllTeams();
+          const homeTeam =
+            teams.find((team) => team.id === savedMatchup.homeTeamId) ?? null;
+          const awayTeam =
+            teams.find((team) => team.id === savedMatchup.awayTeamId) ?? null;
+          if (homeTeam && awayTeam) {
+            if (active) setDbTeams([homeTeam, awayTeam]);
+            return;
+          }
+        } catch {
+          // Fall back to the featured matchup if the saved selection cannot load.
+        }
+      }
+
+      try {
+        const res = await fetchNextMatch();
+        if (active) setDbTeams([res.home_team, res.away_team]);
+      } catch {
+        // Preserve the existing empty-state behavior if no matchup is available.
+      }
+    };
+
+    void loadMatchup();
+    return () => {
+      active = false;
+    };
   }, [dbTeams]);
 
   // Stop the backend simulation cleanly if the user leaves the /Match page
@@ -228,13 +258,15 @@ export function MatchPage({ getWsTicket }: Props) {
       if (dbTeams[0] && team === dbTeams[0].name && dbTeams[0].primary_color) {
         return dbTeams[0].primary_color;
       }
-      if (dbTeams[1] && team === dbTeams[1].name && dbTeams[1].primary_color) {
-        return dbTeams[1].primary_color;
+      if (dbTeams[1] && team === dbTeams[1].name && dbTeams[1].secondary_color) {
+        return dbTeams[1].secondary_color;
       }
-      return teams.indexOf(team) === 1 ? "#3b82f6" : "#ef4444";
+      return "#94a3b8";
     },
-    [teams, dbTeams],
+    [dbTeams],
   );
+  const homeColor = colorOf(teams[0] || "Home");
+  const awayColor = colorOf(teams[1] || "Away");
 
   const isRunning = streamActive && !paused;
 
@@ -245,6 +277,8 @@ export function MatchPage({ getWsTicket }: Props) {
           teams={teams}
           events={events}
           matchTime={matchStopped ? 0 : now}
+          homeColor={homeColor}
+          awayColor={awayColor}
           running={isRunning}
           paused={paused}
           finished={now >= 5400 || matchStopped}
@@ -274,12 +308,13 @@ export function MatchPage({ getWsTicket }: Props) {
             <MomentumGraph
               metrics={latestMetrics}
               teams={teams}
+              colorOf={colorOf}
               latestEvent={events[events.length - 1]}
             />
             <ActiveOverlay active={active} teams={teams} />
           </div>
 
-          <MatchStats events={events} teams={teams} />
+          <MatchStats events={events} teams={teams} colorOf={colorOf} />
         </section>
 
         <div className="bg-slate-900 border border-slate-600 rounded-xl overflow-hidden shadow-lg h-[500px] lg:h-auto lg:max-h-[1150px] flex flex-col">

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import * as auth from "../Services/authService";
+import { clearSavedMatchup } from "../Services/matchupStorage";
 import { AuthStatus, Session, User, UserPreferences } from "../types";
 
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signedOut = useCallback((message = "") => {
     window.clearTimeout(timer.current);
     auth.clearSession();
+    clearSavedMatchup();
     setUser(null);
     setStatus("anonymous");
     setNotice(message);

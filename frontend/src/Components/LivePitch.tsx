@@ -3,16 +3,15 @@ import type { MatchEvent } from "../types";
 
 interface LivePitchProps {
   events: MatchEvent[];
-  colorOf?: (team: string) => string;
+  colorOf: (team: string) => string;
 }
 
 export function LivePitch({ events, colorOf }: LivePitchProps) {
   const visibleEvents = useMemo(() => events.slice(-6), [events]);
-
-  const getTeamColor = (team: string) => {
-    if (colorOf) return colorOf(team);
-    return team === "London Warriors" ? "#3b82f6" : "#ef4444";
-  };
+  const markerIdForColor = (color: string) => `arrow-${color.replace("#", "")}`;
+  const markerColors = [
+    ...new Set(visibleEvents.map((event) => colorOf(event.team))),
+  ];
 
   // Maps 0..100 absolute coordinates directly inside the white pitch boundary rect (x: 1..104, y: 1..67)
   const sx = (val: number) => {
@@ -105,35 +104,26 @@ export function LivePitch({ events, colorOf }: LivePitchProps) {
         viewBox="0 0 105 68"
       >
         <defs>
-          <marker
-            id="arrow-red"
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
-          </marker>
-          <marker
-            id="arrow-blue"
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
-          </marker>
+          {markerColors.map((color) => (
+            <marker
+              key={color}
+              id={markerIdForColor(color)}
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="4"
+              markerHeight="4"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
+            </marker>
+          ))}
         </defs>
 
         {visibleEvents.map((event, index) => {
-          const color = getTeamColor(event.team);
+          const color = colorOf(event.team);
           const opacity = 0.3 + (0.7 * (index + 1)) / visibleEvents.length;
-          const markerId =
-            color === "#ef4444" ? "url(#arrow-red)" : "url(#arrow-blue)";
+          const markerId = `url(#${markerIdForColor(color)})`;
 
           const x = sx(event.x ?? 50);
           const y = sy(event.y ?? 50);

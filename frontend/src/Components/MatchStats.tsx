@@ -4,6 +4,7 @@ import type { MatchEvent } from "../types";
 interface Props {
   events: MatchEvent[];
   teams: string[];
+  colorOf: (team: string) => string;
 }
 
 type TeamStats = {
@@ -28,9 +29,11 @@ const emptyStats = (): TeamStats => ({
   tacklesWon: 0,
 });
 
-export function MatchStats({ events, teams }: Props) {
+export function MatchStats({ events, teams, colorOf }: Props) {
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
+  const homeColor = colorOf(homeTeam);
+  const awayColor = colorOf(awayTeam);
 
   const { home, away, possessionHome, possessionAway, topPlayers } =
     useMemo(() => {
@@ -147,13 +150,19 @@ export function MatchStats({ events, teams }: Props) {
     <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 sm:p-5 shadow-lg flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-        <span className="text-xs sm:text-sm font-black uppercase tracking-widest text-red-400">
+        <span
+          className="text-xs sm:text-sm font-black uppercase tracking-widest"
+          style={{ color: homeColor }}
+        >
           {homeTeam}
         </span>
         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
           Match Statistics
         </span>
-        <span className="text-xs sm:text-sm font-black uppercase tracking-widest text-blue-400">
+        <span
+          className="text-xs sm:text-sm font-black uppercase tracking-widest"
+          style={{ color: awayColor }}
+        >
           {awayTeam}
         </span>
       </div>
@@ -166,6 +175,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={`${possessionAway}%`}
           leftVal={possessionHome}
           rightVal={possessionAway}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Expected Goals (xG)"
@@ -173,6 +184,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={away.xg.toFixed(2)}
           leftVal={home.xg}
           rightVal={away.xg}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Total Shots"
@@ -180,6 +193,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={String(away.shots)}
           leftVal={home.shots}
           rightVal={away.shots}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Shots on Target"
@@ -187,6 +202,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={String(away.shotsOnTarget)}
           leftVal={home.shotsOnTarget}
           rightVal={away.shotsOnTarget}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Big Chances"
@@ -194,6 +211,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={String(away.bigChances)}
           leftVal={home.bigChances}
           rightVal={away.bigChances}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Pass Accuracy"
@@ -201,6 +220,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={`${awayPassAcc}%`}
           leftVal={homePassAcc}
           rightVal={awayPassAcc}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Corners"
@@ -208,6 +229,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={String(away.corners)}
           leftVal={home.corners}
           rightVal={away.corners}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
         <StatRow
           label="Tackles Won"
@@ -215,6 +238,8 @@ export function MatchStats({ events, teams }: Props) {
           rightDisplay={String(away.tacklesWon)}
           leftVal={home.tacklesWon}
           rightVal={away.tacklesWon}
+          leftColor={homeColor}
+          rightColor={awayColor}
         />
       </div>
 
@@ -226,7 +251,7 @@ export function MatchStats({ events, teams }: Props) {
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {topPlayers.map((p) => {
-              const isAwayPlayer = p.team === awayTeam;
+              const playerColor = colorOf(p.team);
               const badgeColor =
                 p.rating >= 7.5
                   ? "bg-emerald-500 text-slate-950"
@@ -250,9 +275,8 @@ export function MatchStats({ events, teams }: Props) {
                     </span>
                   </div>
                   <span
-                    className={`text-xs font-bold shrink-0 ml-2 ${
-                      isAwayPlayer ? "text-blue-400" : "text-red-400"
-                    }`}
+                    className="text-xs font-bold shrink-0 ml-2"
+                    style={{ color: playerColor }}
                   >
                     {p.team}
                   </span>
@@ -272,12 +296,16 @@ function StatRow({
   rightDisplay,
   leftVal,
   rightVal,
+  leftColor,
+  rightColor,
 }: {
   label: string;
   leftDisplay: string;
   rightDisplay: string;
   leftVal: number;
   rightVal: number;
+  leftColor: string;
+  rightColor: string;
 }) {
   const total = leftVal + rightVal;
   const leftPct = total > 0 ? (leftVal / total) * 100 : 50;
@@ -303,12 +331,12 @@ function StatRow({
         ) : (
           <>
             <div
-              className="h-full bg-red-500 rounded-l-full transition-all duration-500"
-              style={{ width: `${leftPct}%` }}
+              className="h-full rounded-l-full transition-all duration-500"
+              style={{ width: `${leftPct}%`, backgroundColor: leftColor }}
             />
             <div
-              className="h-full bg-blue-500 rounded-r-full transition-all duration-500"
-              style={{ width: `${rightPct}%` }}
+              className="h-full rounded-r-full transition-all duration-500"
+              style={{ width: `${rightPct}%`, backgroundColor: rightColor }}
             />
           </>
         )}

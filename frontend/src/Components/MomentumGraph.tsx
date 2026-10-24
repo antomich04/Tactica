@@ -4,10 +4,11 @@ import type { MatchEvent, MatchMetrics } from "../types";
 interface Props {
   metrics: MatchMetrics | null;
   teams: string[];
+  colorOf: (team: string) => string;
   latestEvent?: MatchEvent;
 }
 
-export function MomentumGraph({ metrics, teams, latestEvent }: Props) {
+export function MomentumGraph({ metrics, teams, colorOf, latestEvent }: Props) {
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
 
@@ -40,7 +41,7 @@ export function MomentumGraph({ metrics, teams, latestEvent }: Props) {
             !isAway ? "opacity-100" : "opacity-40"
           }`}
         >
-          <Shield className="w-8 h-8 text-red-500" />
+          <Shield className="w-8 h-8" style={{ color: colorOf(homeTeam) }} />
           <span className="text-sm font-black uppercase text-white truncate max-w-[90px]">
             {homeTeam}
           </span>
@@ -85,7 +86,7 @@ export function MomentumGraph({ metrics, teams, latestEvent }: Props) {
           <span className="text-sm font-black uppercase text-white truncate max-w-[90px]">
             {awayTeam}
           </span>
-          <Shield className="w-8 h-8 text-blue-500" />
+          <Shield className="w-8 h-8" style={{ color: colorOf(awayTeam) }} />
         </div>
       </div>
     </div>

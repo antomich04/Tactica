@@ -5,6 +5,8 @@ interface Props {
   teams: string[];
   events: MatchEvent[];
   matchTime: number;
+  homeColor: string;
+  awayColor: string;
   running: boolean;
   paused: boolean;
   finished: boolean;
@@ -18,6 +20,8 @@ export function Scoreboard({
   teams,
   events,
   matchTime,
+  homeColor,
+  awayColor,
   running,
   paused,
   finished,
@@ -73,10 +77,16 @@ export function Scoreboard({
             ))}
           </div>
         )}
-        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
+        <span
+          title={homeTeam}
+          className="min-w-0 flex-1 text-right text-lg md:text-xl font-black text-white uppercase tracking-wide break-words"
+        >
           {homeTeam}
         </span>
-        <Shield className="w-6 h-6 md:w-8 md:h-8 text-red-500 shrink-0" />
+        <Shield
+          className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+          style={{ color: homeColor }}
+        />
         <span className="text-2xl md:text-3xl font-black text-white md:ml-2 tabular-nums shrink-0">
           {homeGoals}
         </span>
@@ -151,8 +161,14 @@ export function Scoreboard({
         <span className="text-2xl md:text-3xl font-black text-white md:mr-2 tabular-nums shrink-0">
           {awayGoals}
         </span>
-        <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-500 shrink-0" />
-        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
+        <Shield
+          className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+          style={{ color: awayColor }}
+        />
+        <span
+          title={awayTeam}
+          className="min-w-0 flex-1 text-lg md:text-xl font-black text-white uppercase tracking-wide break-words"
+        >
           {awayTeam}
         </span>
         {awayRedCards > 0 && (

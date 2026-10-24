@@ -10,46 +10,75 @@ export interface TacticalPlayer {
 }
 
 interface TacticalPitchProps {
-  teamColor: "red" | "blue";
   customColor?: string;
   players: (TacticalPlayer | TeamPlayer)[];
 }
 
-// Role positions are percentages from the top-left; forwards sit near the top of the pitch.
 const ROLE_POSITIONS: Record<string, { top: string; left: string }> = {
-  GK: { top: "90%", left: "50%" },
-  RB: { top: "75%", left: "85%" },
-  RCB: { top: "75%", left: "65%" },
-  CB: { top: "75%", left: "50%" },
-  LCB: { top: "75%", left: "35%" },
-  LB: { top: "75%", left: "15%" },
-  RDM: { top: "62%", left: "65%" },
-  CDM: { top: "62%", left: "50%" },
-  LDM: { top: "62%", left: "35%" },
-  RM: { top: "45%", left: "85%" },
-  RCM: { top: "45%", left: "65%" },
-  CM: { top: "45%", left: "50%" },
-  LCM: { top: "45%", left: "35%" },
-  LM: { top: "45%", left: "15%" },
-  CAM: { top: "32%", left: "50%" },
-  RW: { top: "18%", left: "80%" },
-  LW: { top: "18%", left: "20%" },
-  RS: { top: "12%", left: "65%" },
-  ST: { top: "12%", left: "50%" },
-  LS: { top: "12%", left: "35%" },
+  GK: { top: "88%", left: "50%" },
+  RB: { top: "72%", left: "86%" },
+  RCB: { top: "72%", left: "62%" },
+  CB: { top: "72%", left: "50%" },
+  LCB: { top: "72%", left: "38%" },
+  LB: { top: "72%", left: "14%" },
+  RDM: { top: "57%", left: "68%" },
+  CDM: { top: "57%", left: "50%" },
+  LDM: { top: "57%", left: "32%" },
+  RM: { top: "41%", left: "86%" },
+  RCM: { top: "41%", left: "62%" },
+  CM: { top: "41%", left: "50%" },
+  LCM: { top: "41%", left: "38%" },
+  LM: { top: "41%", left: "14%" },
+  CAM: { top: "27%", left: "50%" },
+  RW: { top: "15%", left: "82%" },
+  LW: { top: "15%", left: "18%" },
+  RS: { top: "11%", left: "66%" },
+  ST: { top: "11%", left: "50%" },
+  LS: { top: "11%", left: "34%" },
 };
 
+function isLightHex(hex?: string): boolean {
+  if (!hex || !hex.startsWith("#") || hex.length < 7) return false;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.72;
+}
+
 export function TacticalPitch({
-  teamColor,
   customColor,
   players,
 }: TacticalPitchProps) {
-  const dotColor = teamColor === "red" ? "bg-red-500" : "bg-blue-500";
-  const glowColor =
-    teamColor === "red" ? "shadow-red-500/50" : "shadow-blue-500/50";
+  const numberTextColor = isLightHex(customColor)
+    ? "text-slate-950"
+    : "text-white";
+
+  const rolesPresent = new Set(players.map((p) => p.role));
+  const isThreeBack =
+    rolesPresent.has("CB") &&
+    !rolesPresent.has("RB") &&
+    !rolesPresent.has("LB");
+  const isFiveBack =
+    rolesPresent.has("CB") && rolesPresent.has("RB") && rolesPresent.has("LB");
+
+  const getCoordinates = (role: string) => {
+    if (isThreeBack) {
+      if (role === "RCB") return { top: "72%", left: "78%" };
+      if (role === "LCB") return { top: "72%", left: "22%" };
+    }
+    if (isFiveBack) {
+      if (role === "RB") return { top: "72%", left: "88%" };
+      if (role === "RCB") return { top: "72%", left: "69%" };
+      if (role === "CB") return { top: "72%", left: "50%" };
+      if (role === "LCB") return { top: "72%", left: "31%" };
+      if (role === "LB") return { top: "72%", left: "12%" };
+    }
+    return ROLE_POSITIONS[role] || { top: "50%", left: "50%" };
+  };
 
   return (
-    <div className="relative w-full max-w-[320px] mx-auto aspect-[3/4] bg-emerald-900/40 border-2 border-slate-600/50 rounded-lg overflow-hidden flex-shrink-0">
+    <div className="relative w-full max-w-[420px] mx-auto aspect-[3/4] bg-emerald-900/40 border-2 border-slate-600/50 rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
       <div className="absolute top-1/2 left-0 w-full border-t-2 border-slate-500/30" />
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-slate-500/30 rounded-full" />
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-slate-500/50 rounded-full" />
@@ -59,34 +88,40 @@ export function TacticalPitch({
       <div className="absolute top-0 left-[37.5%] w-1/4 h-[6%] border-2 border-slate-500/30 border-t-0" />
 
       {players.map((player) => {
-        const position = ROLE_POSITIONS[player.role] || {
-          top: "50%",
-          left: "50%",
-        };
+        const position = getCoordinates(player.role);
 
         return (
           <div
             key={`${player.name}-${player.role}`}
             role="img"
-            aria-label={`${player.name}, ${player.role}`}
-            tabIndex={0}
-            className="group absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            aria-label={`#${player.squad_number ?? ""} ${player.name}, ${player.role}`}
+            title={`${player.name}, ${player.role}`}
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center select-none"
             style={{ top: position.top, left: position.left }}
           >
+            {/* Player Circle with Shirt Number Inside */}
             <div
-              className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${dotColor} ${glowColor} transition-transform duration-200 group-hover:scale-125`}
-              style={customColor ? { backgroundColor: customColor } : undefined}
-            />
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center font-black text-[11px] sm:text-xs tabular-nums ${numberTextColor}`}
+              style={
+                customColor
+                  ? {
+                      backgroundColor: customColor,
+                      boxShadow: `0 0 12px ${customColor}66`,
+                    }
+                  : undefined
+              }
+            >
+              {player.squad_number ?? ""}
+            </div>
 
-            <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none transition-opacity duration-200">
-              <div className="bg-slate-900 border border-slate-700 text-slate-100 text-xs font-bold py-1 px-3 rounded shadow-xl whitespace-nowrap">
-                {player.squad_number ? `#${player.squad_number} ` : ""}
+            {/* Permanent Player Name, Position Label Below Circle */}
+            <div className="mt-1 px-1.5 py-0.5 rounded bg-slate-950/90 border border-slate-700/80 shadow-md flex items-center text-[9px] sm:text-[10px] leading-tight whitespace-nowrap">
+              <span className="font-bold text-slate-100 max-w-[64px] sm:max-w-[78px] truncate">
                 {player.name}
-                <span className="text-slate-400 font-normal ml-1">
-                  {player.role}
-                </span>
-              </div>
-              <div className="w-2 h-2 bg-slate-900 border-b border-r border-slate-700 transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2" />
+              </span>
+              <span className="text-slate-300 font-semibold">
+                , {player.role}
+              </span>
             </div>
           </div>
         );
