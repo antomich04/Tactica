@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { api, ApiError } from "../Services/authService";
 import { fetchAllTeams, fetchNextMatch } from "../Services/teamsService";
@@ -12,6 +12,7 @@ import { MomentumGraph } from "../Components/MomentumGraph";
 import { MatchStats } from "../Components/MatchStats";
 import { MatchLineups } from "../Components/MatchLineups";
 import { openLiveStream } from "../Services/streamService";
+import { useTranslation } from "@/Utils/i18n";
 import type {
   ClubTeam,
   Envelope,
@@ -21,12 +22,15 @@ import type {
   Status,
 } from "../types";
 
+
 type Props = {
   getWsTicket: () => Promise<string>;
 };
 
 export function MatchPage({ getWsTicket }: Props) {
+  const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const routeState = location.state as {
     homeTeam?: ClubTeam;
     awayTeam?: ClubTeam;
@@ -290,6 +294,7 @@ export function MatchPage({ getWsTicket }: Props) {
           detail={paused ? "PAUSED" : detail}
           onToggleMatch={toggleMatch}
           onStopMatch={stopMatch}
+          onChangeMatch={() => navigate("/home")}
         />
       </div>
 
@@ -306,8 +311,8 @@ export function MatchPage({ getWsTicket }: Props) {
               <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-xs z-20 rounded-xl border border-slate-600 max-w-[700px] mx-auto">
                 <p className="text-slate-300 font-bold tracking-wide text-sm">
                   {status === "live"
-                    ? "AWAITING KICKOFF..."
-                    : "PRESS START TO CONNECT"}
+                    ? t("awaitingKickoff")
+                    : t("pressStartToConnect")}
                 </p>
               </div>
             )}

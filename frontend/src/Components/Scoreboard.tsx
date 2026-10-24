@@ -1,5 +1,6 @@
 import { MatchEvent, Status } from "../types";
-import { Shield, Play, Square } from "lucide-react";
+import { ArrowLeftRight, Shield, Play, Square } from "lucide-react";
+import { useTranslation } from "../Utils/i18n";
 
 interface Props {
   teams: string[];
@@ -14,6 +15,7 @@ interface Props {
   detail: string;
   onToggleMatch: () => void;
   onStopMatch: () => void;
+  onChangeMatch: () => void;
 }
 
 export function Scoreboard({
@@ -29,7 +31,9 @@ export function Scoreboard({
   detail,
   onToggleMatch,
   onStopMatch,
+  onChangeMatch,
 }: Props) {
+  const { t } = useTranslation();
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
 
@@ -54,14 +58,14 @@ export function Scoreboard({
   };
 
   const getPeriodLabel = () => {
-    if (matchTime === 0 && !running) return "PRE-MATCH";
-    if (matchTime >= 5400) return "FULL TIME";
-    if (matchTime >= 2700) return "2ND HALF";
-    return "1ST HALF";
+    if (matchTime === 0 && !running) return t("preMatch");
+    if (matchTime >= 5400) return t("fullTime");
+    if (matchTime >= 2700) return t("secondHalf");
+    return t("firstHalf");
   };
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-lg grid grid-cols-2 gap-y-3 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
+    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 shadow-lg grid grid-cols-2 gap-y-4 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
       {/* Home Team */}
       <div className="flex items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end order-1 min-w-0">
         {homeRedCards > 0 && (
@@ -93,67 +97,78 @@ export function Scoreboard({
       </div>
 
       {/* Timer and Controls */}
-      <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-3 md:pt-0 shrink-0 md:px-8 md:min-w-[200px]">
+      <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-4 md:pt-0 shrink-0 md:px-8 md:min-w-[240px]">
         <div
-          className="flex items-center gap-2 mb-1"
+          className="flex items-center gap-2 mb-1.5"
           title={detail || undefined}
         >
           <div
-            className={`w-1.5 h-1.5 rounded-full ${
+            className={`w-2 h-2 rounded-full ${
               status === "live" && !finished
                 ? "bg-emerald-500 animate-pulse"
                 : "bg-slate-500"
             }`}
           />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
             {paused
-              ? "PAUSED"
+              ? t("paused")
               : finished
-                ? "FULL TIME"
+                ? t("fullTime")
                 : status === "live"
                   ? getPeriodLabel()
                   : status}
           </span>
         </div>
 
-        <div className="bg-slate-950 border border-slate-700 px-4 py-1 rounded-lg mb-1.5 shadow-inner">
-          <span className="text-xl font-mono font-black text-emerald-400 tabular-nums tracking-wider">
+        <div className="bg-slate-950 border border-slate-700 px-5 py-1.5 rounded-lg mb-2 shadow-inner">
+          <span className="text-2xl font-mono font-black text-emerald-400 tabular-nums tracking-wider">
             {formatTime(matchTime)}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
+            type="button"
             onClick={onToggleMatch}
-            className={`flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md active:scale-95 ${
               running && !finished
-                ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700"
+                ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-600"
                 : "bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
             }`}
           >
             {running && !finished ? (
-              <Square className="w-2.5 h-2.5 fill-current" />
+              <Square className="w-4 h-4 fill-current" />
             ) : (
-              <Play className="w-2.5 h-2.5 fill-current" />
+              <Play className="w-4 h-4 fill-current" />
             )}
             {finished
-              ? "Reset Match"
+              ? t("resetMatch")
               : running
-                ? "Pause Match"
+                ? t("pauseMatch")
                 : matchTime > 0
-                  ? "Resume Match"
-                  : "Start Match"}
+                  ? t("resumeMatch")
+                  : t("startMatch")}
           </button>
           {paused && (
             <button
+              type="button"
               onClick={onStopMatch}
-              className="flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-600 shadow-md active:scale-95"
             >
-              <Square className="w-2.5 h-2.5 fill-current" />
-              Stop Match
+              <Square className="w-4 h-4 fill-current" />
+              {t("stopMatch")}
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={onChangeMatch}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-400 transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300 cursor-pointer"
+        >
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+          {t("changeMatch")}
+        </button>
       </div>
 
       {/* Away Team */}

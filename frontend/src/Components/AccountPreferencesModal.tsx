@@ -5,6 +5,7 @@ import { Button } from "@/Components/button";
 import { api, ApiError } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
 import { clearTeamsCache, fetchAllTeams } from "../Services/teamsService";
+import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam, LanguageCode } from "../types";
 
 const LANGUAGE_LABELS: Record<LanguageCode, string> = {
@@ -40,6 +41,7 @@ export function AccountPreferencesModal({
   onClose,
 }: AccountPreferencesModalProps) {
   const { user, patchUser } = useAuth();
+  const { t } = useTranslation();
   const [language, setLanguage] = useState<LanguageCode>("en");
   const [favoriteTeam, setFavoriteTeam] = useState("");
   const [favoritePlayer, setFavoritePlayer] = useState("");
@@ -78,7 +80,7 @@ export function AccountPreferencesModal({
     return () => {
       active = false;
     };
-  }, [open, preference]);
+  }, [open, preference, user?.preferences]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,10 +97,12 @@ export function AccountPreferencesModal({
 
   const savePreferences = async (
     event: FormEvent,
-    updates: { language: LanguageCode } | {
-      favorite_team: string | null;
-      favorite_player: string | null;
-    },
+    updates:
+      | { language: LanguageCode }
+      | {
+          favorite_team: string | null;
+          favorite_player: string | null;
+        },
   ) => {
     event.preventDefault();
     setBusy(true);
@@ -106,7 +110,7 @@ export function AccountPreferencesModal({
     setSuccess("");
     try {
       const response = await api.patch("/api/account/preferences", updates);
-      patchUser({ preferences: response.data.preferences }, true);
+      patchUser({ preferences: response.data.user?.preferences ?? response.data.preferences }, true);
       if ("favorite_team" in updates) clearTeamsCache();
       setSuccess("Preferences updated successfully.");
     } catch (saveError: unknown) {
@@ -134,7 +138,7 @@ export function AccountPreferencesModal({
             id="account-preference-title"
             className="text-xl font-black uppercase tracking-wide text-white"
           >
-            {preference === "language" ? "Change Language" : "Favorite Team & Player"}
+            {preference === "language" ? t("changeLanguage") : t("favTeamAndPlayer")}
           </h2>
           <button
             type="button"
@@ -195,7 +199,7 @@ export function AccountPreferencesModal({
               disabled={busy}
               className="h-12 bg-blue-500 font-bold text-white hover:bg-blue-600"
             >
-              {busy ? "Saving..." : "Save Language"}
+              {busy ? t("saving") : t("saveLanguage")}
             </Button>
           </form>
         ) : (
@@ -209,7 +213,7 @@ export function AccountPreferencesModal({
             className="flex flex-col gap-4"
           >
             <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-              Favorite Team
+              {t("favoriteTeam")}
               <select
                 value={favoriteTeam}
                 onChange={(event) => {
@@ -221,7 +225,7 @@ export function AccountPreferencesModal({
                 disabled={loadingTeams}
                 className="h-12 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white disabled:opacity-50"
               >
-                <option value="">None</option>
+                <option value="">{t("none")}</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.name}>
                     {team.name} ({team.formation})
@@ -231,7 +235,7 @@ export function AccountPreferencesModal({
             </label>
 
             <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-              Favorite Player
+              {t("favoritePlayer")}
               <select
                 value={favoritePlayer}
                 onChange={(event) => {
@@ -243,26 +247,19 @@ export function AccountPreferencesModal({
                 className="h-12 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white disabled:opacity-50"
               >
                 <option value="">
-                  {selectedClub ? "None (All Players)" : "Select a team first"}
+                  {selectedClub ? t("noneAllPlayers") : t("selectTeamFirst")}
                 </option>
                 {selectedClub && (
                   <>
-                    <optgroup label="Starters">
+                    <optgroup label={t("startingXI")}>
                       {selectedClub.roster.starters.map((player) => (
                         <option key={player.id} value={player.name}>
                           {player.name} ({player.role})
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Substitutes">
+                    <optgroup label={t("substitutes")}>
                       {selectedClub.roster.substitutes.map((player) => (
-                        <option key={player.id} value={player.name}>
-                          {player.name} ({player.role})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Reserves">
-                      {selectedClub.roster.reserves.map((player) => (
                         <option key={player.id} value={player.name}>
                           {player.name} ({player.role})
                         </option>
@@ -277,7 +274,7 @@ export function AccountPreferencesModal({
               disabled={busy || loadingTeams || Boolean(teamsError)}
               className="h-12 bg-blue-500 font-bold text-white hover:bg-blue-600"
             >
-              {busy ? "Saving..." : "Save Favorites"}
+              {busy ? t("saving") : t("saveFavorites")}
             </Button>
           </form>
         )}

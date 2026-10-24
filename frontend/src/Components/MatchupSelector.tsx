@@ -3,6 +3,7 @@ import { ChevronDown, ArrowLeftRight, Shield } from "lucide-react";
 import { Card, CardContent } from "@/Components/card";
 import { Badge } from "@/Components/badge";
 import { TeamCrest } from "./TeamCrest";
+import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam } from "../types";
 
 interface MatchupSelectorProps {
@@ -22,6 +23,7 @@ export function MatchupSelector({
   onSelectAway,
   onSwapTeams,
 }: MatchupSelectorProps) {
+  const { t } = useTranslation();
   const homeAccentColor = homeTeam?.primary_color || "#94a3b8";
   const awayAccentColor = awayTeam?.secondary_color || "#94a3b8";
 
@@ -30,11 +32,10 @@ export function MatchupSelector({
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <div>
           <h2 className="text-xl sm:text-2xl text-white font-bold tracking-wide">
-            Select Matchup
+            {t("selectMatchup")}
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Choose the Home and Away clubs to preview lineups and launch the
-            simulation.
+            {t("selectMatchupSub")}
           </p>
         </div>
       </div>
@@ -42,7 +43,7 @@ export function MatchupSelector({
       <Card className="bg-slate-800/80 border border-slate-700/70 rounded-3xl shadow-xl overflow-visible">
         <CardContent className="p-4 sm:p-6 md:p-8 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-6">
           <TeamDropdown
-            label="Home Club"
+            label={t("homeClub")}
             accentColor={homeAccentColor}
             teams={teams}
             selected={homeTeam}
@@ -55,7 +56,7 @@ export function MatchupSelector({
               type="button"
               onClick={onSwapTeams}
               disabled={!homeTeam && !awayTeam}
-              title="Swap Home & Away Teams"
+              title={t("swapTeams")}
               className="w-11 h-11 rounded-full bg-slate-900 hover:bg-slate-700 border-2 border-slate-600 text-slate-300 hover:text-white flex items-center justify-center transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-md"
             >
               <ArrowLeftRight className="w-5 h-5" />
@@ -63,7 +64,7 @@ export function MatchupSelector({
           </div>
 
           <TeamDropdown
-            label="Away Club"
+            label={t("awayClub")}
             accentColor={awayAccentColor}
             teams={teams}
             selected={awayTeam}
@@ -91,6 +92,7 @@ function TeamDropdown({
   disabledTeamId?: number;
   onSelect: (team: ClubTeam) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -156,10 +158,10 @@ function TeamDropdown({
               </div>
               <div className="flex flex-col">
                 <span className="text-base font-bold text-slate-400">
-                  Select {label}...
+                  {t("selectClubPlaceholder")} {label}...
                 </span>
                 <span className="text-xs text-slate-500">
-                  Choose from {teams.length} Premier League clubs
+                  {t("chooseFromClubs", { count: teams.length })}
                 </span>
               </div>
             </>
@@ -174,7 +176,7 @@ function TeamDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-2 z-50 max-h-80 overflow-y-auto rounded-2xl bg-slate-900 border-2 border-slate-700 shadow-2xl p-2 space-y-1 custom-scrollbar">
+        <div className="absolute left-0 right-0 top-full mt-2 z-50 max-h-80 overflow-y-auto rounded-2xl bg-slate-900 border-2 border-slate-700 shadow-2xl p-2 space-y-1">
           {teams.map((club) => {
             const isDisabled = club.id === disabledTeamId;
             const isSelected = club.id === selected?.id;

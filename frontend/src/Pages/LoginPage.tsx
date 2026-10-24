@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 const BASE_INPUT_CLASSES =
-  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white text-2xl border border-slate-700 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
+  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white !text-lg sm:!text-xl font-medium border border-slate-700 placeholder:text-slate-500 placeholder:text-base focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
 
 const ERROR_INPUT_CLASSES =
   "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";

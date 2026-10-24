@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "../Utils/i18n";
 import type { MatchEvent } from "../types";
 
 interface Props {
@@ -30,6 +31,7 @@ const emptyStats = (): TeamStats => ({
 });
 
 export function MatchStats({ events, teams, colorOf }: Props) {
+  const { t } = useTranslation();
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
   const homeColor = colorOf(homeTeam);
@@ -147,20 +149,20 @@ export function MatchStats({ events, teams, colorOf }: Props) {
       : 0;
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 sm:p-5 shadow-lg flex flex-col gap-5">
+    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-5 sm:p-6 shadow-lg flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
         <span
-          className="text-xs sm:text-sm font-black uppercase tracking-widest"
+          className="text-base sm:text-lg font-black uppercase tracking-widest"
           style={{ color: homeColor }}
         >
           {homeTeam}
         </span>
-        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-          Match Statistics
+        <span className="text-sm sm:text-base font-extrabold uppercase tracking-widest text-slate-300">
+          {t("matchStatistics")}
         </span>
         <span
-          className="text-xs sm:text-sm font-black uppercase tracking-widest"
+          className="text-base sm:text-lg font-black uppercase tracking-widest"
           style={{ color: awayColor }}
         >
           {awayTeam}
@@ -168,9 +170,9 @@ export function MatchStats({ events, teams, colorOf }: Props) {
       </div>
 
       {/* Stat Comparison Rows */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
         <StatRow
-          label="Possession"
+          label={t("possession")}
           leftDisplay={`${possessionHome}%`}
           rightDisplay={`${possessionAway}%`}
           leftVal={possessionHome}
@@ -179,7 +181,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Expected Goals (xG)"
+          label={t("expectedGoals")}
           leftDisplay={home.xg.toFixed(2)}
           rightDisplay={away.xg.toFixed(2)}
           leftVal={home.xg}
@@ -188,7 +190,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Total Shots"
+          label={t("totalShots")}
           leftDisplay={String(home.shots)}
           rightDisplay={String(away.shots)}
           leftVal={home.shots}
@@ -197,7 +199,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Shots on Target"
+          label={t("shotsOnTarget")}
           leftDisplay={String(home.shotsOnTarget)}
           rightDisplay={String(away.shotsOnTarget)}
           leftVal={home.shotsOnTarget}
@@ -206,7 +208,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Big Chances"
+          label={t("bigChances")}
           leftDisplay={String(home.bigChances)}
           rightDisplay={String(away.bigChances)}
           leftVal={home.bigChances}
@@ -215,7 +217,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Pass Accuracy"
+          label={t("passAccuracy")}
           leftDisplay={`${homePassAcc}%`}
           rightDisplay={`${awayPassAcc}%`}
           leftVal={homePassAcc}
@@ -224,7 +226,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Corners"
+          label={t("corners")}
           leftDisplay={String(home.corners)}
           rightDisplay={String(away.corners)}
           leftVal={home.corners}
@@ -233,7 +235,7 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           rightColor={awayColor}
         />
         <StatRow
-          label="Tackles Won"
+          label={t("tacklesWon")}
           leftDisplay={String(home.tacklesWon)}
           rightDisplay={String(away.tacklesWon)}
           leftVal={home.tacklesWon}
@@ -245,11 +247,11 @@ export function MatchStats({ events, teams, colorOf }: Props) {
 
       {/* Top Rated Players */}
       {topPlayers.length > 0 && (
-        <div className="border-t border-slate-800 pt-3.5 flex flex-col gap-2.5">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-            Top Rated Players
+        <div className="border-t border-slate-800 pt-4 flex flex-col gap-3">
+          <span className="text-sm font-extrabold uppercase tracking-widest text-slate-300">
+            {t("topRatedPlayers")}
           </span>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {topPlayers.map((p) => {
               const playerColor = colorOf(p.team);
               const badgeColor =
@@ -262,20 +264,20 @@ export function MatchStats({ events, teams, colorOf }: Props) {
               return (
                 <div
                   key={p.name}
-                  className="flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2"
+                  className="flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5"
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-xs font-black tabular-nums shrink-0 ${badgeColor}`}
+                      className={`px-2 py-0.5 rounded-md text-sm sm:text-base font-black tabular-nums shrink-0 ${badgeColor}`}
                     >
                       {p.rating.toFixed(1)}
                     </span>
-                    <span className="text-sm font-bold text-slate-200 truncate">
+                    <span className="text-base font-bold text-slate-100 truncate">
                       {p.name}
                     </span>
                   </div>
                   <span
-                    className="text-xs font-bold shrink-0 ml-2"
+                    className="text-xs sm:text-sm font-bold shrink-0 ml-2"
                     style={{ color: playerColor }}
                   >
                     {p.team}
@@ -312,20 +314,20 @@ function StatRow({
   const rightPct = total > 0 ? (rightVal / total) * 100 : 50;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-xs sm:text-sm">
-        <span className="font-black text-white tabular-nums w-12 text-left">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-lg sm:text-xl font-black text-white tabular-nums w-16 text-left">
           {leftDisplay}
         </span>
-        <span className="text-xs font-semibold text-slate-400 tracking-wide">
+        <span className="text-sm sm:text-base font-bold text-slate-300 tracking-wide text-center">
           {label}
         </span>
-        <span className="font-black text-white tabular-nums w-12 text-right">
+        <span className="text-lg sm:text-xl font-black text-white tabular-nums w-16 text-right">
           {rightDisplay}
         </span>
       </div>
 
-      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex gap-0.5">
+      <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex gap-0.5">
         {total === 0 ? (
           <div className="w-full h-full bg-slate-800" />
         ) : (
