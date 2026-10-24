@@ -401,7 +401,7 @@ export function SettingsPage() {
       await api.delete("/api/account/delete-account");
       closeModal();
       await logout();
-      navigate("/Login");
+      navigate("/login");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
       setBusy(false);

@@ -86,7 +86,7 @@ export function LoginPage() {
 
     try {
       await login(identifier.trim(), password);
-      navigate("/Home");
+      navigate("/home");
     } catch (err: unknown) {
       setFormError(extractError(err, "Sign in failed"));
     } finally {
@@ -318,7 +318,7 @@ export function LoginPage() {
                   variant="link"
                   type="button"
                   className="p-0 h-auto font-semibold text-lg text-blue-500 hover:underline bg-transparent"
-                  onClick={() => navigate("/SignUp")}
+                  onClick={() => navigate("/signup")}
                 >
                   Sign up
                 </Button>

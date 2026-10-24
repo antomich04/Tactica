@@ -110,7 +110,7 @@ export function HomePage() {
               homeTeam={homeTeam}
               awayTeam={awayTeam}
               onWatch={() =>
-                navigate("/Match", {
+                navigate("/match", {
                   state: { homeTeam, awayTeam },
                 })
               }

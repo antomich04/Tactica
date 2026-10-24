@@ -81,7 +81,7 @@ export function NavigationBar() {
 
   const getDesktopLinkStyle = (route: string) => {
     const isActive =
-      route === "/Home"
+      route === "/home"
         ? path === route || path === "/"
         : path.startsWith(route);
     return isActive
@@ -91,7 +91,7 @@ export function NavigationBar() {
 
   const getMobileLinkStyle = (route: string) => {
     const isActive =
-      route === "/Home"
+      route === "/home"
         ? path === route || path === "/"
         : path.startsWith(route);
     return isActive
@@ -125,7 +125,7 @@ export function NavigationBar() {
 
           <div className="hidden md:flex items-center">
             <Link
-              to="/Home"
+              to="/home"
               className="text-2xl font-black text-emerald-400 tracking-widest uppercase hover:text-emerald-300 transition-colors"
             >
               Tactica
@@ -136,7 +136,7 @@ export function NavigationBar() {
         <div className="flex items-center justify-center flex-1 md:flex-none">
           <div className="md:hidden flex items-center justify-center">
             <Link
-              to="/Home"
+              to="/home"
               className="text-2xl font-black text-emerald-400 tracking-widest uppercase hover:text-emerald-300 transition-colors"
             >
               Tactica
@@ -144,13 +144,13 @@ export function NavigationBar() {
           </div>
 
           <div className="hidden md:flex items-center gap-8 mt-2">
-            <Link to="/Home" className={getDesktopLinkStyle("/Home")}>
+            <Link to="/home" className={getDesktopLinkStyle("/home")}>
               Home
             </Link>
-            <Link to="/Match" className={getDesktopLinkStyle("/Match")}>
+            <Link to="/match" className={getDesktopLinkStyle("/match")}>
               Matches
             </Link>
-            <Link to="/Settings" className={getDesktopLinkStyle("/Settings")}>
+            <Link to="/settings" className={getDesktopLinkStyle("/settings")}>
               Settings
             </Link>
           </div>
@@ -199,7 +199,7 @@ export function NavigationBar() {
                   type="button"
                   onClick={() => {
                     setDropdownOpen(false);
-                    navigate("/Settings");
+                    navigate("/settings");
                   }}
                   className="w-full flex items-center justify-between gap-3 px-2 py-2 mt-1 rounded-md text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
                 >
@@ -215,7 +215,7 @@ export function NavigationBar() {
                   type="button"
                   onClick={() => {
                     setDropdownOpen(false);
-                    navigate("/Settings");
+                    navigate("/settings");
                   }}
                   className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
                 >
@@ -226,7 +226,7 @@ export function NavigationBar() {
 
               <div className="px-3 py-1">
                 <Link
-                  to="/Settings"
+                  to="/settings"
                   onClick={() => setDropdownOpen(false)}
                   className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors"
                 >
@@ -287,23 +287,23 @@ export function NavigationBar() {
 
         <div className="flex flex-col gap-2 p-4 mt-2 overflow-y-auto">
           <Link
-            to="/Home"
+            to="/home"
             onClick={closeDrawer}
-            className={getMobileLinkStyle("/Home")}
+            className={getMobileLinkStyle("/home")}
           >
             Home
           </Link>
           <Link
-            to="/Match"
+            to="/match"
             onClick={closeDrawer}
-            className={getMobileLinkStyle("/Match")}
+            className={getMobileLinkStyle("/match")}
           >
             Matches
           </Link>
           <Link
-            to="/Settings"
+            to="/settings"
             onClick={closeDrawer}
-            className={getMobileLinkStyle("/Settings")}
+            className={getMobileLinkStyle("/settings")}
           >
             Settings
           </Link>

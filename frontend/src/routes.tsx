@@ -13,7 +13,7 @@ function AuthGuard() {
   if (status === "loading") return <p className="splash">Loading…</p>;
 
   const isAuthenticated = status !== "anonymous" && user;
-  return isAuthenticated ? <Outlet /> : <Navigate to="/Login" replace />;
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 function PublicGuard() {
@@ -22,7 +22,7 @@ function PublicGuard() {
   if (status === "loading") return <p className="splash">Loading…</p>;
 
   const isAuthenticated = status === "authenticated" && Boolean(user);
-  return !isAuthenticated ? <Outlet /> : <Navigate to="/Home" replace />;
+  return !isAuthenticated ? <Outlet /> : <Navigate to="/home" replace />;
 }
 
 function MainLayout() {
@@ -45,8 +45,8 @@ export const router = createBrowserRouter([
   {
     element: <PublicGuard />,
     children: [
-      { path: "/Login", element: <LoginPage /> },
-      { path: "/SignUp", element: <SignUpPage /> },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/signup", element: <SignUpPage /> },
     ],
   },
   {
@@ -55,15 +55,15 @@ export const router = createBrowserRouter([
       {
         element: <MainLayout />,
         children: [
-          { path: "/Home", element: <HomePage /> },
-          { path: "/Match", element: <MatchPageWrapper /> },
-          { path: "/Settings", element: <SettingsPage /> },
+          { path: "/home", element: <HomePage /> },
+          { path: "/match", element: <MatchPageWrapper /> },
+          { path: "/settings", element: <SettingsPage /> },
         ],
       },
     ],
   },
   {
     path: "*",
-    element: <Navigate to="/Login" replace />,
+    element: <Navigate to="/login" replace />,
   },
 ]);

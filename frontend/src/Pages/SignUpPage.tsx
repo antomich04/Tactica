@@ -120,7 +120,7 @@ export function SignUpPage() {
 
     try {
       await register(username.trim(), email.trim(), password);
-      navigate("/Home");
+      navigate("/home");
     } catch (err: unknown) {
       setFormError(extractError(err, "Sign up failed"));
     } finally {
@@ -288,7 +288,7 @@ export function SignUpPage() {
                 variant="link"
                 type="button"
                 className="p-0 h-auto font-semibold text-lg text-blue-500 hover:underline bg-transparent"
-                onClick={() => navigate("/Login")}
+                onClick={() => navigate("/login")}
               >
                 Login
               </Button>
