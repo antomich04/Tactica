@@ -9,9 +9,6 @@ import {
   Key,
   Trash2,
   Mail,
-  HelpCircle,
-  Globe,
-  Heart,
   Camera,
   ChevronRight,
   X,
@@ -30,8 +27,7 @@ import { Badge } from "@/Components/badge";
 import { Input } from "@/Components/input";
 import { api, ApiError } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
-import { clearTeamsCache, fetchAllTeams } from "../Services/teamsService";
-import type { ClubTeam, LanguageCode, PersonaCode } from "../types";
+import type { PersonaCode } from "../types";
 
 type ModalType =
   | null
@@ -39,17 +35,7 @@ type ModalType =
   | "email"
   | "password"
   | "verify_email"
-  | "forgot_password"
-  | "delete_account"
-  | "language"
-  | "favorites";
-
-const LANGUAGE_LABELS: Record<LanguageCode, string> = {
-  en: "English",
-  es: "Español (Spanish)",
-  pt: "Português (Portuguese)",
-  gr: "Ελληνικά (Greek)",
-};
+  | "delete_account";
 
 const BASE_CARD_CLASSES =
   "bg-slate-900 border-2 border-slate-700 shadow-[0_10px_20px_-5px_rgba(0,0,0,0.2)] rounded-2xl";
@@ -57,30 +43,9 @@ const SECURITY_GROUP_CLASSES =
   "flex flex-col gap-4 p-4 sm:p-5 bg-slate-950/50 border-2 border-slate-800 rounded-2xl";
 
 export function SettingsPage() {
-  const { user, logout, patchUser, refreshUser } = useAuth();
+  const { user, logout, patchUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [teamsList, setTeamsList] = useState<ClubTeam[]>([]);
-
-  useEffect(() => {
-    fetchAllTeams()
-      .then(setTeamsList)
-      .catch(() => {});
-  }, []);
-
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(
-    (user?.preferences?.language as LanguageCode) || "en",
-  );
-  const [favoriteTeamInput, setFavoriteTeamInput] = useState(
-    user?.preferences?.favorite_team ?? "",
-  );
-  const [favoritePlayerInput, setFavoritePlayerInput] = useState(
-    user?.preferences?.favorite_player ?? "",
-  );
-
-  const selectedClubObj =
-    teamsList.find((t) => t.name === favoriteTeamInput) || null;
 
   const [role, setRole] = useState<PersonaCode>(
     (user?.preferences?.persona as PersonaCode) || "casual",
@@ -104,7 +69,6 @@ export function SettingsPage() {
   const [verifyEmailInput, setVerifyEmailInput] = useState(user?.email ?? "");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -123,7 +87,6 @@ export function SettingsPage() {
     setActiveModal(null);
     setFeedback(null);
     setOtpSent(false);
-    setOtpVerified(false);
     setOtpCode("");
     setNewUsername("");
     setNewEmail("");
@@ -187,42 +150,6 @@ export function SettingsPage() {
     } catch (err) {
       setRole(previous);
       setToastMessage(extractError(err));
-    }
-  };
-
-  const handleSaveLanguage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const res = await api.patch("/api/account/preferences", {
-        language: selectedLanguage,
-      });
-      patchUser({ preferences: res.data.preferences }, true);
-      finishWithToast(res.data.message || "Language updated successfully");
-    } catch (err) {
-      setFeedback({ type: "error", text: extractError(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSaveFavorites = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const res = await api.patch("/api/account/preferences", {
-        favorite_team: favoriteTeamInput.trim() || null,
-        favorite_player: favoritePlayerInput.trim() || null,
-      });
-      clearTeamsCache();
-      patchUser({ preferences: res.data.preferences }, true);
-      finishWithToast(res.data.message || "Favorites updated successfully");
-    } catch (err) {
-      setFeedback({ type: "error", text: extractError(err) });
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -324,76 +251,7 @@ export function SettingsPage() {
     }
   };
 
-  // 5. 3-Step Forgot Password
-  const handleRequestForgotOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const res = await api.post("/api/auth/forgot-password/request", {
-        email: verifyEmailInput.trim(),
-      });
-      setOtpSent(true);
-      setFeedback({
-        type: "success",
-        text: res.data.message || "Enter the 6-digit OTP sent to your email.",
-      });
-    } catch (err) {
-      setFeedback({ type: "error", text: extractError(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleVerifyForgotOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setFeedback(null);
-    try {
-      await api.post("/api/auth/forgot-password/verify", {
-        email: verifyEmailInput.trim(),
-        otp: otpCode.trim(),
-      });
-      setOtpVerified(true);
-      setFeedback({
-        type: "success",
-        text: "OTP verified! Now enter your new password.",
-      });
-    } catch (err) {
-      setFeedback({ type: "error", text: extractError(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleConfirmForgotReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const res = await api.post("/api/auth/forgot-password/reset", {
-        email: verifyEmailInput.trim(),
-        otp: otpCode.trim(),
-        new_password: newPassword,
-      });
-      try {
-        await api.post("/api/auth/login", {
-          username_or_email: verifyEmailInput.trim(),
-          password: newPassword,
-        });
-        await refreshUser();
-      } catch {
-        // Ignore if user chooses to log in manually later
-      }
-      finishWithToast(res.data.message || "Password successfully reset");
-    } catch (err) {
-      setFeedback({ type: "error", text: extractError(err) });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // 6. DELETE /api/account/delete-account
+  // 5. DELETE /api/account/delete-account
   const handleDeleteAccount = async () => {
     setBusy(true);
     setFeedback(null);
@@ -407,15 +265,6 @@ export function SettingsPage() {
       setBusy(false);
     }
   };
-
-  const currentLangCode = (user?.preferences?.language as LanguageCode) || "en";
-  const currentLangLabel = LANGUAGE_LABELS[currentLangCode] || "English";
-  const currentTeam = user?.preferences?.favorite_team;
-  const currentPlayer = user?.preferences?.favorite_player;
-  const favoritesSubtitle =
-    currentTeam || currentPlayer
-      ? [currentTeam, currentPlayer].filter(Boolean).join(" • ")
-      : "None selected";
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:py-14 lg:px-8 flex flex-col gap-8 sm:gap-10">
@@ -499,37 +348,6 @@ export function SettingsPage() {
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
-              App Preferences
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <SettingAction
-              icon={<Globe />}
-              title="Change Language"
-              subtitle={currentLangLabel}
-              onClick={() => {
-                setSelectedLanguage(currentLangCode);
-                setActiveModal("language");
-              }}
-            />
-            <SettingAction
-              icon={<Heart />}
-              title="Favorite Team / Player"
-              subtitle={favoritesSubtitle}
-              onClick={() => {
-                setFavoriteTeamInput(user?.preferences?.favorite_team ?? "");
-                setFavoritePlayerInput(
-                  user?.preferences?.favorite_player ?? "",
-                );
-                setActiveModal("favorites");
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className={BASE_CARD_CLASSES}>
-          <CardHeader className="pb-5">
-            <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
               Account Security
             </CardTitle>
           </CardHeader>
@@ -566,15 +384,6 @@ export function SettingsPage() {
                 title="Change Password"
                 subtitle="Update your credentials"
                 onClick={() => setActiveModal("password")}
-              />
-              <SettingAction
-                icon={<HelpCircle />}
-                title="Forgot Password"
-                subtitle="Send a 6-digit OTP reset code"
-                onClick={() => {
-                  setVerifyEmailInput(user?.email ?? "");
-                  setActiveModal("forgot_password");
-                }}
               />
             </div>
           </CardContent>
@@ -684,10 +493,7 @@ export function SettingsPage() {
                 {activeModal === "email" && "Change Email"}
                 {activeModal === "password" && "Change Password"}
                 {activeModal === "verify_email" && "Verify Email"}
-                {activeModal === "forgot_password" && "Reset Password"}
                 {activeModal === "delete_account" && "Delete Account"}
-                {activeModal === "language" && "Change Language"}
-                {activeModal === "favorites" && "Favorite Team & Player"}
               </h3>
               <button
                 type="button"
@@ -713,118 +519,6 @@ export function SettingsPage() {
                 )}
                 <span>{feedback.text}</span>
               </div>
-            )}
-
-            {activeModal === "language" && (
-              <form
-                onSubmit={handleSaveLanguage}
-                className="flex flex-col gap-4"
-              >
-                <div className="flex flex-col gap-2">
-                  {(Object.keys(LANGUAGE_LABELS) as LanguageCode[]).map(
-                    (code) => (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => setSelectedLanguage(code)}
-                        className={`p-3.5 rounded-xl border-2 text-left font-bold transition-all ${
-                          selectedLanguage === code
-                            ? "bg-blue-950/50 border-blue-500 text-blue-400"
-                            : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
-                        }`}
-                      >
-                        {LANGUAGE_LABELS[code]}
-                      </button>
-                    ),
-                  )}
-                </div>
-                <Button
-                  type="submit"
-                  disabled={busy}
-                  className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
-                >
-                  {busy ? "Saving..." : "Save Language"}
-                </Button>
-              </form>
-            )}
-
-            {activeModal === "favorites" && (
-              <form
-                onSubmit={handleSaveFavorites}
-                className="flex flex-col gap-4"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Favorite Team
-                  </span>
-                  <select
-                    value={favoriteTeamInput}
-                    onChange={(e) => {
-                      setFavoriteTeamInput(e.target.value);
-                      setFavoritePlayerInput("");
-                    }}
-                    className="h-12 px-3 rounded-lg bg-slate-950 text-white border border-slate-700 text-sm"
-                  >
-                    <option value="">None</option>
-                    {teamsList.map((t) => (
-                      <option key={t.id} value={t.name}>
-                        {t.name} ({t.formation})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Favorite Player
-                  </span>
-                  <select
-                    value={favoritePlayerInput}
-                    onChange={(e) => setFavoritePlayerInput(e.target.value)}
-                    disabled={!selectedClubObj}
-                    className="h-12 px-3 rounded-lg bg-slate-950 text-white border border-slate-700 text-sm disabled:opacity-50"
-                  >
-                    <option value="">
-                      {selectedClubObj
-                        ? "None (All Players)"
-                        : "Select a team first"}
-                    </option>
-                    {selectedClubObj && (
-                      <>
-                        <optgroup label="Starters">
-                          {selectedClubObj.roster.starters.map((p) => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} ({p.role})
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Substitutes">
-                          {selectedClubObj.roster.substitutes.map((p) => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} ({p.role})
-                            </option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Reserves">
-                          {selectedClubObj.roster.reserves.map((p) => (
-                            <option key={p.id} value={p.name}>
-                              {p.name} ({p.role})
-                            </option>
-                          ))}
-                        </optgroup>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <Button
-                  type="submit"
-                  disabled={busy}
-                  className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
-                >
-                  {busy ? "Saving..." : "Save Favorites"}
-                </Button>
-              </form>
             )}
 
             {activeModal === "username" && (
@@ -945,76 +639,6 @@ export function SettingsPage() {
                       className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 font-bold"
                     >
                       {busy ? "Verifying..." : "Confirm OTP"}
-                    </Button>
-                  </>
-                )}
-              </form>
-            )}
-
-            {activeModal === "forgot_password" && (
-              <form
-                onSubmit={
-                  !otpSent
-                    ? handleRequestForgotOtp
-                    : !otpVerified
-                      ? handleVerifyForgotOtp
-                      : handleConfirmForgotReset
-                }
-                className="flex flex-col gap-4"
-              >
-                {!otpSent ? (
-                  <>
-                    <Input
-                      type="email"
-                      value={verifyEmailInput}
-                      onChange={(e) => setVerifyEmailInput(e.target.value)}
-                      placeholder="Enter your account email"
-                      className="h-12 bg-slate-950 text-white border-slate-700"
-                      required
-                    />
-                    <Button
-                      type="submit"
-                      disabled={busy}
-                      className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
-                    >
-                      {busy ? "Sending..." : "Send Reset OTP"}
-                    </Button>
-                  </>
-                ) : !otpVerified ? (
-                  <>
-                    <Input
-                      type="text"
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="Enter 6-digit OTP"
-                      className="h-12 bg-slate-950 text-white border-slate-700"
-                      required
-                    />
-                    <Button
-                      type="submit"
-                      disabled={busy}
-                      className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
-                    >
-                      {busy ? "Verifying..." : "Verify OTP"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="New password (8+ chars, 1 A-Z, 1 !@#$%^&*)"
-                      className="h-12 bg-slate-950 text-white border-slate-700"
-                      required
-                    />
-                    <Button
-                      type="submit"
-                      disabled={busy}
-                      className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
-                    >
-                      {busy ? "Resetting..." : "Confirm New Password"}
                     </Button>
                   </>
                 )}

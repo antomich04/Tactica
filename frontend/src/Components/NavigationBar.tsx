@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   User,
   Settings,
@@ -11,17 +11,20 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../Providers/AuthProvider";
+import { AccountPreferencesModal } from "./AccountPreferencesModal";
 
 export function NavigationBar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [preferenceModal, setPreferenceModal] = useState<
+    "language" | "favorites" | null
+  >(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerCloseButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const location = useLocation();
-  const navigate = useNavigate();
   const path = location.pathname;
 
   const { logout, user } = useAuth();
@@ -199,7 +202,7 @@ export function NavigationBar() {
                   type="button"
                   onClick={() => {
                     setDropdownOpen(false);
-                    navigate("/settings");
+                    setPreferenceModal("language");
                   }}
                   className="w-full flex items-center justify-between gap-3 px-2 py-2 mt-1 rounded-md text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
                 >
@@ -215,7 +218,7 @@ export function NavigationBar() {
                   type="button"
                   onClick={() => {
                     setDropdownOpen(false);
-                    navigate("/settings");
+                    setPreferenceModal("favorites");
                   }}
                   className="w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
                 >
@@ -249,6 +252,12 @@ export function NavigationBar() {
           )}
         </div>
       </nav>
+
+      <AccountPreferencesModal
+        open={preferenceModal !== null}
+        preference={preferenceModal ?? "language"}
+        onClose={() => setPreferenceModal(null)}
+      />
 
       {drawerOpen && (
         <button
