@@ -30,7 +30,8 @@ import { Badge } from "@/Components/badge";
 import { Input } from "@/Components/input";
 import { API_URL } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
-import type { LanguageCode, PersonaCode } from "../types";
+import { fetchAllTeams } from "../Services/teamsService";
+import type { ClubTeam, LanguageCode, PersonaCode } from "../types";
 
 type ModalType =
   | null
@@ -60,6 +61,28 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [teamsList, setTeamsList] = useState<ClubTeam[]>([]);
+
+  useEffect(() => {
+    fetchAllTeams()
+      .then(setTeamsList)
+      .catch(() => {});
+  }, []);
+
+  // Preferences modal states
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(
+    (user?.preferences?.language as LanguageCode) || "en",
+  );
+  const [favoriteTeamInput, setFavoriteTeamInput] = useState(
+    user?.preferences?.favorite_team ?? "",
+  );
+  const [favoritePlayerInput, setFavoritePlayerInput] = useState(
+    user?.preferences?.favorite_player ?? "",
+  );
+
+  const selectedClubObj =
+    teamsList.find((t) => t.name === favoriteTeamInput) || null;
+
   const [role, setRole] = useState<PersonaCode>(
     (user?.preferences?.persona as PersonaCode) || "casual",
   );
@@ -85,17 +108,6 @@ export function SettingsPage() {
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
-
-  // Preferences modal states
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(
-    (user?.preferences?.language as LanguageCode) || "en",
-  );
-  const [favoriteTeamInput, setFavoriteTeamInput] = useState(
-    user?.preferences?.favorite_team ?? "",
-  );
-  const [favoritePlayerInput, setFavoritePlayerInput] = useState(
-    user?.preferences?.favorite_player ?? "",
-  );
 
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{
@@ -789,24 +801,66 @@ export function SettingsPage() {
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Favorite Team
                   </span>
-                  <Input
+                  <select
                     value={favoriteTeamInput}
-                    onChange={(e) => setFavoriteTeamInput(e.target.value)}
-                    placeholder="e.g. Manchester Sky, London Warriors"
-                    className="h-12 bg-slate-950 text-white border-slate-700"
-                  />
+                    onChange={(e) => {
+                      setFavoriteTeamInput(e.target.value);
+                      setFavoritePlayerInput("");
+                    }}
+                    className="h-12 px-3 rounded-lg bg-slate-950 text-white border border-slate-700 text-sm"
+                  >
+                    <option value="">None</option>
+                    {teamsList.map((t) => (
+                      <option key={t.id} value={t.name}>
+                        {t.name} ({t.formation})
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
                 <div className="flex flex-col gap-1.5">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Favorite Player
                   </span>
-                  <Input
+                  <select
                     value={favoritePlayerInput}
                     onChange={(e) => setFavoritePlayerInput(e.target.value)}
-                    placeholder="e.g. Erling Halland, Kyle Plammer"
-                    className="h-12 bg-slate-950 text-white border-slate-700"
-                  />
+                    disabled={!selectedClubObj}
+                    className="h-12 px-3 rounded-lg bg-slate-950 text-white border border-slate-700 text-sm disabled:opacity-50"
+                  >
+                    <option value="">
+                      {selectedClubObj
+                        ? "None (All Players)"
+                        : "Select a team first"}
+                    </option>
+                    {selectedClubObj && (
+                      <>
+                        <optgroup label="Starters">
+                          {selectedClubObj.roster.starters.map((p) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({p.role})
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Substitutes">
+                          {selectedClubObj.roster.substitutes.map((p) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({p.role})
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Reserves">
+                          {selectedClubObj.roster.reserves.map((p) => (
+                            <option key={p.id} value={p.name}>
+                              {p.name} ({p.role})
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    )}
+                  </select>
                 </div>
+
                 <Button
                   type="submit"
                   disabled={busy}

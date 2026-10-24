@@ -1,52 +1,55 @@
-export type PlayerRole = 
-  | "GK" | "RB" | "RCB" | "CB" | "LCB" | "LB" 
-  | "RDM" | "CDM" | "LDM" 
-  | "RM" | "RCM" | "CM" | "LCM" | "LM" 
-  | "CAM" 
-  | "RW" | "LW" 
-  | "RS" | "ST" | "LS";
+import type { PlayerRole, TeamPlayer } from "../types";
+
+export type { PlayerRole };
 
 export interface TacticalPlayer {
   name: string;
   role: PlayerRole;
+  squad_number?: number | null;
+  nationality?: string | null;
 }
 
 interface TacticalPitchProps {
   teamColor: "red" | "blue";
-  players: TacticalPlayer[];
+  customColor?: string;
+  players: (TacticalPlayer | TeamPlayer)[];
 }
 
 // Role positions are percentages from the top-left; forwards sit near the top of the pitch.
-const ROLE_POSITIONS: Record<PlayerRole, { top: string; left: string }> = {
-  GK:  { top: "90%", left: "50%" },
-  RB:  { top: "75%", left: "85%" },
+const ROLE_POSITIONS: Record<string, { top: string; left: string }> = {
+  GK: { top: "90%", left: "50%" },
+  RB: { top: "75%", left: "85%" },
   RCB: { top: "75%", left: "65%" },
-  CB:  { top: "75%", left: "50%" },
+  CB: { top: "75%", left: "50%" },
   LCB: { top: "75%", left: "35%" },
-  LB:  { top: "75%", left: "15%" },
+  LB: { top: "75%", left: "15%" },
   RDM: { top: "62%", left: "65%" },
   CDM: { top: "62%", left: "50%" },
   LDM: { top: "62%", left: "35%" },
-  RM:  { top: "45%", left: "85%" },
+  RM: { top: "45%", left: "85%" },
   RCM: { top: "45%", left: "65%" },
-  CM:  { top: "45%", left: "50%" },
+  CM: { top: "45%", left: "50%" },
   LCM: { top: "45%", left: "35%" },
-  LM:  { top: "45%", left: "15%" },
+  LM: { top: "45%", left: "15%" },
   CAM: { top: "32%", left: "50%" },
-  RW:  { top: "18%", left: "80%" },
-  LW:  { top: "18%", left: "20%" },
-  RS:  { top: "12%", left: "65%" },
-  ST:  { top: "12%", left: "50%" },
-  LS:  { top: "12%", left: "35%" },
+  RW: { top: "18%", left: "80%" },
+  LW: { top: "18%", left: "20%" },
+  RS: { top: "12%", left: "65%" },
+  ST: { top: "12%", left: "50%" },
+  LS: { top: "12%", left: "35%" },
 };
 
-export function TacticalPitch({ teamColor, players }: TacticalPitchProps) {
+export function TacticalPitch({
+  teamColor,
+  customColor,
+  players,
+}: TacticalPitchProps) {
   const dotColor = teamColor === "red" ? "bg-red-500" : "bg-blue-500";
-  const glowColor = teamColor === "red" ? "shadow-red-500/50" : "shadow-blue-500/50";
+  const glowColor =
+    teamColor === "red" ? "shadow-red-500/50" : "shadow-blue-500/50";
 
   return (
     <div className="relative w-full max-w-[320px] mx-auto aspect-[3/4] bg-emerald-900/40 border-2 border-slate-600/50 rounded-lg overflow-hidden flex-shrink-0">
-      
       <div className="absolute top-1/2 left-0 w-full border-t-2 border-slate-500/30" />
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 border-2 border-slate-500/30 rounded-full" />
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-slate-500/50 rounded-full" />
@@ -56,10 +59,13 @@ export function TacticalPitch({ teamColor, players }: TacticalPitchProps) {
       <div className="absolute top-0 left-[37.5%] w-1/4 h-[6%] border-2 border-slate-500/30 border-t-0" />
 
       {players.map((player) => {
-        const position = ROLE_POSITIONS[player.role] || { top: "50%", left: "50%" };
-        
+        const position = ROLE_POSITIONS[player.role] || {
+          top: "50%",
+          left: "50%",
+        };
+
         return (
-          <div 
+          <div
             key={`${player.name}-${player.role}`}
             role="img"
             aria-label={`${player.name}, ${player.role}`}
@@ -67,11 +73,18 @@ export function TacticalPitch({ teamColor, players }: TacticalPitchProps) {
             className="group absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             style={{ top: position.top, left: position.left }}
           >
-            <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${dotColor} ${glowColor} transition-transform duration-200 group-hover:scale-125`} />
-            
+            <div
+              className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${dotColor} ${glowColor} transition-transform duration-200 group-hover:scale-125`}
+              style={customColor ? { backgroundColor: customColor } : undefined}
+            />
+
             <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 pointer-events-none transition-opacity duration-200">
               <div className="bg-slate-900 border border-slate-700 text-slate-100 text-xs font-bold py-1 px-3 rounded shadow-xl whitespace-nowrap">
-                {player.name} <span className="text-slate-400 font-normal ml-1">{player.role}</span>
+                {player.squad_number ? `#${player.squad_number} ` : ""}
+                {player.name}
+                <span className="text-slate-400 font-normal ml-1">
+                  {player.role}
+                </span>
               </div>
               <div className="w-2 h-2 bg-slate-900 border-b border-r border-slate-700 transform rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2" />
             </div>

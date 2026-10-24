@@ -125,6 +125,70 @@ export type Envelope =
     }
   | { kind: "overlay"; data: Overlay };
 
+export type PlayerRole =
+  | "GK"
+  | "RB"
+  | "RCB"
+  | "CB"
+  | "LCB"
+  | "LB"
+  | "RDM"
+  | "CDM"
+  | "LDM"
+  | "RM"
+  | "RCM"
+  | "CM"
+  | "LCM"
+  | "LM"
+  | "CAM"
+  | "RW"
+  | "LW"
+  | "RS"
+  | "ST"
+  | "LS"
+  | "DEF"
+  | "MID"
+  | "FWD";
+
+export type RosterTier = "starter" | "substitute" | "reserve";
+
+export type TeamPlayer = {
+  id: number;
+  team_id: number;
+  name: string;
+  squad_number: number;
+  position: "GK" | "DEF" | "MID" | "FWD";
+  role: PlayerRole;
+  nationality: string;
+  tier: RosterTier;
+};
+
+export type TeamRoster = {
+  starters: TeamPlayer[];
+  substitutes: TeamPlayer[];
+  reserves: TeamPlayer[];
+};
+
+export type ClubTeam = {
+  id: number;
+  name: string;
+  short_code: string;
+  primary_color: string;
+  secondary_color: string;
+  formation: string;
+  tactical_style: string;
+  stadium_name: string;
+  badge_svg: string;
+  players: TeamPlayer[];
+  roster: TeamRoster;
+};
+
+export type NextMatchResponse = {
+  status: string;
+  home_team: ClubTeam;
+  away_team: ClubTeam;
+};
+
 export type Status =
   | "idle"
   | "connecting"

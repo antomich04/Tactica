@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { api, ApiError } from "../Services/authService";
+import { fetchNextMatch } from "../Services/teamsService";
 import { Scoreboard } from "../Components/Scoreboard";
 import { ActiveOverlay } from "../Components/ActiveOverlay";
 import { EventFeed } from "../Components/EventFeed";
@@ -9,6 +11,7 @@ import { MomentumGraph } from "../Components/MomentumGraph";
 import { MatchStats } from "../Components/MatchStats";
 import { openLiveStream } from "../Services/streamService";
 import type {
+  ClubTeam,
   Envelope,
   MatchEvent,
   MatchMetrics,
@@ -21,6 +24,16 @@ type Props = {
 };
 
 export function MatchPage({ getWsTicket }: Props) {
+  const location = useLocation();
+  const routeState = location.state as {
+    homeTeam?: ClubTeam;
+    awayTeam?: ClubTeam;
+  } | null;
+
+  const [dbTeams, setDbTeams] = useState<[ClubTeam | null, ClubTeam | null]>([
+    routeState?.homeTeam ?? null,
+    routeState?.awayTeam ?? null,
+  ]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [detail, setDetail] = useState("");
@@ -29,6 +42,13 @@ export function MatchPage({ getWsTicket }: Props) {
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const [latestMetrics, setLatestMetrics] = useState<MatchMetrics | null>(null);
+
+  useEffect(() => {
+    if (dbTeams[0] && dbTeams[1]) return;
+    fetchNextMatch()
+      .then((res) => setDbTeams([res.home_team, res.away_team]))
+      .catch(() => {});
+  }, [dbTeams]);
 
   const add = useCallback((env: Envelope) => {
     if (env.kind === "event") {
@@ -58,18 +78,20 @@ export function MatchPage({ getWsTicket }: Props) {
       return;
     }
 
+    let isMounted = true;
     setEvents([]);
     setOverlays([]);
     setLatestMetrics(null);
 
     const handlers = {
-      onMessage: add,
+      onMessage: (env: Envelope) => {
+        if (isMounted) add(env);
+      },
       onStatus: async (next: Status, text?: string) => {
+        if (!isMounted) return;
         setStatus(next);
         setDetail(text ?? "");
 
-        // Once both WebSockets are connected ("live"), kick off the backend match engine
-        // so zero opening events are missed during the WebSocket handshake.
         if (next === "live" && !matchTriggeredRef.current) {
           matchTriggeredRef.current = true;
           try {
@@ -83,24 +105,30 @@ export function MatchPage({ getWsTicket }: Props) {
                   : error instanceof Error
                     ? error.message
                     : "Failed to start match.";
-            // Ignore 409/already-running messages if a match is already in progress
             if (
               typeof message === "string" &&
-              !message.toLowerCase().includes("already")
+              !message.toLowerCase().includes("already") &&
+              isMounted
             ) {
               setDetail(message);
             }
           }
         }
 
-        if (next === "ended") {
+        if (next === "ended" && isMounted) {
           setRunning(false);
           matchTriggeredRef.current = false;
         }
       },
     };
 
-    return openLiveStream(getWsTicket, handlers);
+    const cleanupStream = openLiveStream(getWsTicket, handlers);
+
+    return () => {
+      isMounted = false;
+      matchTriggeredRef.current = false;
+      cleanupStream();
+    };
   }, [running, add, getWsTicket]);
 
   const toggleMatch = () => {
@@ -126,18 +154,29 @@ export function MatchPage({ getWsTicket }: Props) {
 
   const active =
     overlays.length > 0 ? overlays[overlays.length - 1] : undefined;
-
   const evidence = useMemo(
     () => new Set(active?.evidence_event_ids ?? []),
     [active],
   );
-  const teams = useMemo(
-    () => [...new Set(events.map((e) => e.team))].slice(0, 2),
-    [events],
-  );
+
+  const teams = useMemo(() => {
+    const eventTeams = [...new Set(events.map((e) => e.team))].slice(0, 2);
+    if (eventTeams.length === 2) return eventTeams;
+    if (dbTeams[0] && dbTeams[1]) return [dbTeams[0].name, dbTeams[1].name];
+    return eventTeams;
+  }, [events, dbTeams]);
+
   const colorOf = useCallback(
-    (team: string) => (teams.indexOf(team) === 1 ? "#3b82f6" : "#ef4444"),
-    [teams],
+    (team: string) => {
+      if (dbTeams[0] && team === dbTeams[0].name && dbTeams[0].primary_color) {
+        return dbTeams[0].primary_color;
+      }
+      if (dbTeams[1] && team === dbTeams[1].name && dbTeams[1].primary_color) {
+        return dbTeams[1].primary_color;
+      }
+      return teams.indexOf(team) === 1 ? "#3b82f6" : "#ef4444";
+    },
+    [teams, dbTeams],
   );
 
   return (

@@ -50,8 +50,8 @@ export function ActiveOverlay({ active, teams }: Props) {
     );
   }
 
-  const homeTeam = teams[0] || "North London Red";
-  const awayTeam = teams[1] || "London Warriors";
+  const homeTeam = teams[0] || "Home";
+  const awayTeam = teams[1] || "Away";
 
   const isRichAi = display.meta?.tier === "rich_agentic";
   const isAnalyst = display.persona === "analyst";

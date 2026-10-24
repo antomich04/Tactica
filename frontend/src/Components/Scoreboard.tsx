@@ -20,8 +20,8 @@ export function Scoreboard({
   detail,
   onToggleMatch,
 }: Props) {
-  const homeTeam = teams[0] || "North London Red";
-  const awayTeam = teams[1] || "London Warriors";
+  const homeTeam = teams[0] || "Home";
+  const awayTeam = teams[1] || "Away";
 
   const homeGoals = events.filter(
     (e) => e.type === "goal" && e.team === homeTeam,

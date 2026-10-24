@@ -29,8 +29,8 @@ const emptyStats = (): TeamStats => ({
 });
 
 export function MatchStats({ events, teams }: Props) {
-  const homeTeam = teams[0] || "North London Red";
-  const awayTeam = teams[1] || "London Warriors";
+  const homeTeam = teams[0] || "Home";
+  const awayTeam = teams[1] || "Away";
 
   const { home, away, possessionHome, possessionAway, topPlayers } =
     useMemo(() => {
