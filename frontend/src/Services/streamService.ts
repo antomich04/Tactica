@@ -79,8 +79,7 @@ export function openLiveStream(
       };
 
       ws.onerror = () => {
-        if (!localOpened)
-          retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
+        if (!localOpened) retryLater("error", "Can't reach the live stream.");
       };
 
       ws.onclose = (event) => {
@@ -92,7 +91,7 @@ export function openLiveStream(
         } else if (localOpened) {
           retryLater("reconnecting", "Connection dropped");
         } else {
-          retryLater("error", "Can't reach the live stream. Retrying in 2 s.");
+          retryLater("error", "Can't reach the live stream.");
         }
       };
 

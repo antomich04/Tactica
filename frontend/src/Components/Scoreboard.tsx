@@ -6,9 +6,12 @@ interface Props {
   events: MatchEvent[];
   matchTime: number;
   running: boolean;
+  paused: boolean;
+  finished: boolean;
   status: Status;
   detail: string;
   onToggleMatch: () => void;
+  onStopMatch: () => void;
 }
 
 export function Scoreboard({
@@ -16,9 +19,12 @@ export function Scoreboard({
   events,
   matchTime,
   running,
+  paused,
+  finished,
   status,
   detail,
   onToggleMatch,
+  onStopMatch,
 }: Props) {
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
@@ -84,13 +90,19 @@ export function Scoreboard({
         >
           <div
             className={`w-1.5 h-1.5 rounded-full ${
-              status === "live"
+              status === "live" && !finished
                 ? "bg-emerald-500 animate-pulse"
                 : "bg-slate-500"
             }`}
           />
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {status === "live" ? getPeriodLabel() : status}
+            {paused
+              ? "PAUSED"
+              : finished
+                ? "FULL TIME"
+                : status === "live"
+                  ? getPeriodLabel()
+                  : status}
           </span>
         </div>
 
@@ -100,21 +112,38 @@ export function Scoreboard({
           </span>
         </div>
 
-        <button
-          onClick={onToggleMatch}
-          className={`flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-            running
-              ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700"
-              : "bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
-          }`}
-        >
-          {running ? (
-            <Square className="w-2.5 h-2.5 fill-current" />
-          ) : (
-            <Play className="w-2.5 h-2.5 fill-current" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleMatch}
+            className={`flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+              running && !finished
+                ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700"
+                : "bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
+            }`}
+          >
+            {running && !finished ? (
+              <Square className="w-2.5 h-2.5 fill-current" />
+            ) : (
+              <Play className="w-2.5 h-2.5 fill-current" />
+            )}
+            {finished
+              ? "Reset Match"
+              : running
+                ? "Pause Match"
+                : matchTime > 0
+                  ? "Resume Match"
+                  : "Start Match"}
+          </button>
+          {paused && (
+            <button
+              onClick={onStopMatch}
+              className="flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700"
+            >
+              <Square className="w-2.5 h-2.5 fill-current" />
+              Stop Match
+            </button>
           )}
-          {running ? "Stop Match" : "Start Match"}
-        </button>
+        </div>
       </div>
 
       {/* Away Team */}

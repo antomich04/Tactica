@@ -34,10 +34,13 @@ export function MatchPage({ getWsTicket }: Props) {
     routeState?.homeTeam ?? null,
     routeState?.awayTeam ?? null,
   ]);
-  const [running, setRunning] = useState(false);
+  const [streamActive, setStreamActive] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [matchStopped, setMatchStopped] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [detail, setDetail] = useState("");
   const matchTriggeredRef = useRef(false);
+  const [streamGeneration, setStreamGeneration] = useState(0);
 
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
@@ -49,6 +52,13 @@ export function MatchPage({ getWsTicket }: Props) {
       .then((res) => setDbTeams([res.home_team, res.away_team]))
       .catch(() => {});
   }, [dbTeams]);
+
+  // Stop the backend simulation cleanly if the user leaves the /Match page
+  useEffect(() => {
+    return () => {
+      void api.post("/api/match/stop").catch(() => {});
+    };
+  }, []);
 
   const add = useCallback((env: Envelope) => {
     if (env.kind === "event") {
@@ -73,15 +83,12 @@ export function MatchPage({ getWsTicket }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!running) {
+    if (!streamActive) {
       matchTriggeredRef.current = false;
       return;
     }
 
     let isMounted = true;
-    setEvents([]);
-    setOverlays([]);
-    setLatestMetrics(null);
 
     const handlers = {
       onMessage: (env: Envelope) => {
@@ -95,7 +102,11 @@ export function MatchPage({ getWsTicket }: Props) {
         if (next === "live" && !matchTriggeredRef.current) {
           matchTriggeredRef.current = true;
           try {
-            await api.post("/api/match/start");
+            await api.post("/api/match/start", {
+              home_team: dbTeams[0]?.name ?? null,
+              away_team: dbTeams[1]?.name ?? null,
+              restart: true,
+            });
           } catch (error) {
             const message =
               error instanceof ApiError
@@ -105,18 +116,15 @@ export function MatchPage({ getWsTicket }: Props) {
                   : error instanceof Error
                     ? error.message
                     : "Failed to start match.";
-            if (
-              typeof message === "string" &&
-              !message.toLowerCase().includes("already") &&
-              isMounted
-            ) {
+            if (typeof message === "string" && isMounted) {
               setDetail(message);
             }
           }
         }
 
         if (next === "ended" && isMounted) {
-          setRunning(false);
+          setStreamActive(false);
+          setPaused(false);
           matchTriggeredRef.current = false;
         }
       },
@@ -129,18 +137,7 @@ export function MatchPage({ getWsTicket }: Props) {
       matchTriggeredRef.current = false;
       cleanupStream();
     };
-  }, [running, add, getWsTicket]);
-
-  const toggleMatch = () => {
-    if (running) {
-      setStatus("idle");
-      setDetail("");
-      setRunning(false);
-    } else {
-      setDetail("");
-      setRunning(true);
-    }
-  };
+  }, [streamActive, streamGeneration, add, getWsTicket, dbTeams]);
 
   const now = useMemo(
     () =>
@@ -152,6 +149,68 @@ export function MatchPage({ getWsTicket }: Props) {
     [events, overlays],
   );
 
+  const toggleMatch = async () => {
+    if (now >= 5400 || matchStopped) {
+      setEvents([]);
+      setOverlays([]);
+      setLatestMetrics(null);
+      setDetail("");
+      setPaused(false);
+      setMatchStopped(false);
+
+      if (streamActive) {
+        setStreamGeneration((generation) => generation + 1);
+      } else {
+        setStreamActive(true);
+      }
+      return;
+    }
+
+    // 1. Kick off a brand new match
+    if (!streamActive) {
+      setEvents([]);
+      setOverlays([]);
+      setLatestMetrics(null);
+      setDetail("");
+      setPaused(false);
+      setMatchStopped(false);
+      setStreamActive(true);
+      return;
+    }
+
+    // 2. Resume a paused match from the exact second it was paused
+    if (paused) {
+      try {
+        await api.post("/api/match/resume");
+        setPaused(false);
+      } catch {
+        setDetail("Could not resume match.");
+      }
+      return;
+    }
+
+    // 3. Pause the running match on the backend
+    try {
+      await api.post("/api/match/pause");
+      setPaused(true);
+    } catch {
+      setDetail("Could not pause match.");
+    }
+  };
+
+  const stopMatch = async () => {
+    try {
+      await api.post("/api/match/stop");
+      setPaused(false);
+      setMatchStopped(true);
+      setStreamActive(false);
+      setStatus("idle");
+      setDetail("Match stopped");
+    } catch {
+      setDetail("Could not stop match.");
+    }
+  };
+
   const active =
     overlays.length > 0 ? overlays[overlays.length - 1] : undefined;
   const evidence = useMemo(
@@ -160,10 +219,8 @@ export function MatchPage({ getWsTicket }: Props) {
   );
 
   const teams = useMemo(() => {
-    const eventTeams = [...new Set(events.map((e) => e.team))].slice(0, 2);
-    if (eventTeams.length === 2) return eventTeams;
     if (dbTeams[0] && dbTeams[1]) return [dbTeams[0].name, dbTeams[1].name];
-    return eventTeams;
+    return [...new Set(events.map((e) => e.team))].slice(0, 2);
   }, [events, dbTeams]);
 
   const colorOf = useCallback(
@@ -179,17 +236,22 @@ export function MatchPage({ getWsTicket }: Props) {
     [teams, dbTeams],
   );
 
+  const isRunning = streamActive && !paused;
+
   return (
     <div className="max-w-[1500px] w-full mx-auto p-3 flex flex-col gap-4 min-h-[calc(100vh-100px)]">
       <div className="shrink-0">
         <Scoreboard
           teams={teams}
           events={events}
-          matchTime={now}
-          running={running}
-          status={status}
-          detail={detail}
+          matchTime={matchStopped ? 0 : now}
+          running={isRunning}
+          paused={paused}
+          finished={now >= 5400 || matchStopped}
+          status={paused ? "idle" : status}
+          detail={paused ? "PAUSED" : detail}
           onToggleMatch={toggleMatch}
+          onStopMatch={stopMatch}
         />
       </div>
 

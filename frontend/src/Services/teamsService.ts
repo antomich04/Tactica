@@ -15,7 +15,7 @@ const teamsApi = axios.create({
 function handleAxiosError(error: unknown): never {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      throw new ApiError(0, "Can't reach the server. Is the backend running?");
+      throw new ApiError(0, "Can't reach the server.");
     }
     const detail = error.response.data?.detail;
     const message =

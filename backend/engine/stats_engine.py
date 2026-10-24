@@ -2,10 +2,10 @@ from typing import Dict, List
 from models.Event import MatchEvent, EventType, PassOutcome
 
 class StatsEngine:
-    def __init__(self):
+    def __init__(self, home_team: str = "North London Cannons", away_team: str = "London Warriors"):
         self.current_possession_team: str | None = None
-        self.home_team: str = "Arsenal"
-        self.away_team: str = "Chelsea"
+        self.home_team: str = home_team
+        self.away_team: str = away_team
         self.pass_count: Dict[str, int] = {}
         self.chaos_index: float = 0.0  # 0 to 100
 

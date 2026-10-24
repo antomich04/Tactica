@@ -11,7 +11,6 @@ import {
 import * as auth from "../Services/authService";
 import { AuthStatus, Session, User, UserPreferences } from "../types";
 
-// Schedule refresh 30 seconds before the access token's reported expiry.
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
 const RETRY_MS = 10_000;
 
@@ -29,7 +28,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   getWsTicket: () => Promise<string>;
   refreshUser: () => Promise<void>;
-  patchUser: (updates: Partial<User>) => void;
+  patchUser: (updates: Partial<User>, rotatedCookies?: boolean) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(
       () => void renewRef.current(),
-      Math.max(0, ms),
+      Math.max(1_000, ms),
     );
   }, []);
 
@@ -65,6 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [schedule],
   );
 
+  useEffect(() => {
+    auth.setOnSessionRefreshed(signedIn);
+    return () => auth.setOnSessionRefreshed(null);
+  }, [signedIn]);
+
   const signedOut = useCallback((message = "") => {
     window.clearTimeout(timer.current);
     auth.clearSession();
@@ -75,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const renew = useCallback(
     async (firstLoad = false) => {
+      window.clearTimeout(timer.current);
       const started = auth.sessionEpoch();
 
       try {
@@ -96,16 +101,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    renewRef.current = () => renew();
+    renewRef.current = () => renew(false);
   }, [renew]);
 
-  // Restore the session from its HttpOnly cookie when the app starts.
   useEffect(() => {
     void renew(true);
     return () => window.clearTimeout(timer.current);
   }, [renew]);
 
-  // A suspended tab may miss its timer, so check expiry again when it becomes visible.
   useEffect(() => {
     const onVisible = () => {
       if (
@@ -113,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         auth.hasSession() &&
         auth.msUntilExpiry() < RENEW_BEFORE_EXPIRY_MS
       ) {
+        window.clearTimeout(timer.current);
         void renewRef.current();
       }
     };
@@ -168,10 +172,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [renew]);
 
   const patchUser = useCallback(
-    (updates: Partial<User>) => {
+    (updates: Partial<User>, rotatedCookies = true) => {
       setUser((prev) => (prev ? { ...prev, ...updates } : prev));
-      auth.markSessionRotated(900);
-      schedule(900 * 1000 - RENEW_BEFORE_EXPIRY_MS);
+      if (rotatedCookies) {
+        auth.markSessionRotated(900);
+        schedule(900 * 1000 - RENEW_BEFORE_EXPIRY_MS);
+      }
     },
     [schedule],
   );

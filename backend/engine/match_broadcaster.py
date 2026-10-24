@@ -2,13 +2,13 @@ import asyncio
 import logging
 from typing import Dict, Set
 from fastapi import WebSocket
+from services.teams_service import get_featured_matchup
 from engine.event_simulator import EventSimulator
 from engine.stats_engine import StatsEngine
 from engine.moment_detector import MomentDetector
 from engine.overlay_generator import moment_to_fast_overlay
 from engine.momentum_tracker import MomentumTracker
-from models.Moment import Moment
-from models.Moment import MomentCategory
+from models.Moment import Moment, MomentCategory
 from agents.graph import build_tactica_workflow
 from agents.state import PersonalizedOverlay, TacticaGraphState, UserContext
 from agents.analyst.tools import (
@@ -19,15 +19,19 @@ from agents.analyst.tools import (
 
 logger = logging.getLogger(__name__)
 
+
 class MatchBroadcaster:
     def __init__(self):
-        self.simulator = None
-        self.stats_engine = None
-        self.moment_detector = None
-        self.momentum_tracker = None
+        self.simulator: EventSimulator | None = None
+        self.stats_engine: StatsEngine | None = None
+        self.moment_detector: MomentDetector | None = None
+        self.momentum_tracker: MomentumTracker | None = None
         self.workflow = None
 
         self._crew_lock = asyncio.Lock()
+        self._pause_event = asyncio.Event()
+        self._pause_event.set()  # Unpaused by default
+
         self.event_subscribers: Set[WebSocket] = set()
         self.overlay_subscribers: Set[WebSocket] = set()
         self.overlay_user_contexts: Dict[WebSocket, UserContext] = {}
@@ -48,82 +52,145 @@ class MatchBroadcaster:
             persona=PersonaType(raw_persona) if raw_persona in PersonaType._value2member_map_ else PersonaType.CASUAL,
             language=user.get("lang", "en") if user else "en",
             favorite_club=user.get("team") if user else None,
-            player_lock=user.get("player_lock") if user else None
+            player_lock=user.get("player_lock") if user else None,
         )
 
     def unregister_overlay_client(self, websocket: WebSocket):
         self.overlay_subscribers.discard(websocket)
         self.overlay_user_contexts.pop(websocket, None)
 
-    def start_match(self) -> dict:
+    async def start_match(
+        self,
+        home_team_name: str | None = None,
+        away_team_name: str | None = None,
+        restart: bool = False,
+    ) -> dict:
+        # If already running and not forcing a restart, just ensure it is unpaused
         if self._running_task and not self._running_task.done():
-            return {"status": "error", "message": "A match is already in progress."}
+            if not restart:
+                self._pause_event.set()
+                return {
+                    "status": "success",
+                    "message": "Match resumed",
+                    "match_id": self.simulator.match_id if self.simulator else None,
+                }
+            await self.stop_match()
+
+        matchup = await get_featured_matchup(
+            home_name=home_team_name, away_name=away_team_name
+        )
+        home_team = matchup["home_team"]
+        away_team = matchup["away_team"]
 
         if self.workflow is None:
             self.workflow = build_tactica_workflow()
-        
-        self.simulator = EventSimulator() 
-        self.stats_engine = StatsEngine()
+
+        self._pause_event.set()
+        self.simulator = EventSimulator(
+            team_a_data=home_team,
+            team_b_data=away_team,
+            pause_event=self._pause_event,
+        )
+        self.stats_engine = StatsEngine(
+            home_team=home_team["name"],
+            away_team=away_team["name"],
+        )
         self.moment_detector = MomentDetector()
         self.momentum_tracker = MomentumTracker()
-        
+
         self._running_task = asyncio.create_task(self._run_loop())
-        
+
         return {
-            "status": "success", 
+            "status": "success",
             "message": "Match kicked off!",
-            "match_id": self.simulator.match_id
+            "match_id": self.simulator.match_id,
+            "home_team": home_team["name"],
+            "away_team": away_team["name"],
         }
 
-    async def _run_loop(self):
-        async for event in self.simulator.stream_events():
-            metrics = self.stats_engine.process_event(event)
-            momentum_data = self.momentum_tracker.update(event)
-            moment = self.moment_detector.evaluate(event, metrics)
-            snapshot = None
-            user_contexts = []
-            moment_recipients = {}
-            if moment and self.overlay_user_contexts:
-                snapshot = capture_analysis_snapshot(
-                    self.stats_engine, self.momentum_tracker, event.player
-                )
-                moment_recipients = dict(self.overlay_user_contexts)
-                unique_contexts = {
-                    context.model_dump_json(): context
-                    for context in moment_recipients.values()
-                }
-                user_contexts = list(unique_contexts.values())
-
-            event_payload = {
-                "event": event.model_dump(),
-                "metrics": metrics,
-                "momentum": momentum_data
+    def pause_match(self) -> dict:
+        if self._running_task and not self._running_task.done():
+            self._pause_event.clear()
+            return {
+                "status": "success",
+                "message": "Match paused",
+                "match_time": self.simulator.match_time if self.simulator else 0.0,
             }
-            await self._broadcast_json(self.event_subscribers, event_payload)
+        return {"status": "error", "message": "No active match to pause."}
 
-            if moment:
-                # Fast path, quick fire of overlay
-                fast_overlay = moment_to_fast_overlay(moment)
-                fast_overlay.meta["tier"] = "fast_template"
-                await self._broadcast_text(self.overlay_subscribers, fast_overlay.model_dump_json())
+    def resume_match(self) -> dict:
+        if self._running_task and not self._running_task.done():
+            self._pause_event.set()
+            return {
+                "status": "success",
+                "message": "Match resumed",
+                "match_time": self.simulator.match_time if self.simulator else 0.0,
+            }
+        return {"status": "error", "message": "No active match to resume."}
 
-                if snapshot and user_contexts:
-                    task = asyncio.create_task(
-                        self._run_agent_crew(
-                            moment, snapshot, user_contexts, moment_recipients
-                        )
+    async def stop_match(self) -> dict:
+        self._pause_event.set()
+        if self._running_task and not self._running_task.done():
+            self._running_task.cancel()
+            try:
+                await self._running_task
+            except asyncio.CancelledError:
+                pass
+        self._running_task = None
+        return {"status": "success", "message": "Match stopped"}
+
+    async def _run_loop(self):
+        try:
+            async for event in self.simulator.stream_events():
+                metrics = self.stats_engine.process_event(event)
+                momentum_data = self.momentum_tracker.update(event)
+                moment = self.moment_detector.evaluate(event, metrics)
+                snapshot = None
+                user_contexts = []
+                moment_recipients = {}
+                if moment and self.overlay_user_contexts:
+                    snapshot = capture_analysis_snapshot(
+                        self.stats_engine, self.momentum_tracker, event.player
                     )
-                    self._agent_tasks.add(task)
-                    task.add_done_callback(self._agent_tasks.discard)
+                    moment_recipients = dict(self.overlay_user_contexts)
+                    unique_contexts = {
+                        context.model_dump_json(): context
+                        for context in moment_recipients.values()
+                    }
+                    user_contexts = list(unique_contexts.values())
+
+                event_payload = {
+                    "event": event.model_dump(),
+                    "metrics": metrics,
+                    "momentum": momentum_data,
+                }
+                await self._broadcast_json(self.event_subscribers, event_payload)
+
+                if moment:
+                    fast_overlay = moment_to_fast_overlay(moment)
+                    fast_overlay.meta["tier"] = "fast_template"
+                    await self._broadcast_text(
+                        self.overlay_subscribers, fast_overlay.model_dump_json()
+                    )
+
+                    if snapshot and user_contexts:
+                        task = asyncio.create_task(
+                            self._run_agent_crew(
+                                moment, snapshot, user_contexts, moment_recipients
+                            )
+                        )
+                        self._agent_tasks.add(task)
+                        task.add_done_callback(self._agent_tasks.discard)
+        except asyncio.CancelledError:
+            logger.info("Match simulation loop cancelled cleanly.")
 
     async def _run_agent_crew(
-        self, 
-        moment: Moment, 
-        snapshot: MatchAnalysisSnapshot, 
-        user_contexts: list[UserContext], 
-        moment_recipients: Dict[WebSocket, UserContext]
+        self,
+        moment: Moment,
+        snapshot: MatchAnalysisSnapshot,
+        user_contexts: list[UserContext],
+        moment_recipients: Dict[WebSocket, UserContext],
     ):
-        """Runs the agentic workflow using the frozen moment snapshot and fans out personalized results."""
         high_priority = moment.category in (
             MomentCategory.GOAL,
             MomentCategory.RED_CARD,
@@ -137,18 +204,20 @@ class MatchBroadcaster:
             try:
                 with use_analysis_snapshot(snapshot):
                     workflow = build_tactica_workflow()
-                    
+
                     initial_state = TacticaGraphState(
                         moment=moment,
                         user_contexts=user_contexts,
                     )
-                    
+
                     result = await workflow.run(initial_state)
                     outputs = result.get_outputs()
 
                     for rich_overlay in outputs:
-                        await self._broadcast_overlay_to_profile(rich_overlay, moment_recipients)
-                        
+                        await self._broadcast_overlay_to_profile(
+                            rich_overlay, moment_recipients
+                        )
+
             except Exception as e:
                 logger.exception(f"Agent crew failed on moment {moment.id}: {e}")
 
@@ -166,7 +235,10 @@ class MatchBroadcaster:
             try:
                 await websocket.send_text(payload)
             except Exception:
-                logger.debug("Removing disconnected personalized overlay client.", exc_info=True)
+                logger.debug(
+                    "Removing disconnected personalized overlay client.",
+                    exc_info=True,
+                )
                 self.unregister_overlay_client(websocket)
 
     async def _broadcast_json(self, subscribers: Set[WebSocket], payload: dict):
@@ -188,5 +260,5 @@ class MatchBroadcaster:
                 else:
                     subscribers.discard(ws)
 
-# Initialized here so that both routes can refer to the same object
+
 broadcaster = MatchBroadcaster()

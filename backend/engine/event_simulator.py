@@ -2,7 +2,7 @@ import asyncio
 import math
 import random
 import uuid
-from typing import AsyncGenerator
+from typing import AsyncGenerator, List
 from engine.event_stream_interface import EventSource
 from models.Event import (
     MatchEvent, EventType, PassEvent, ShotEvent, TackleEvent, CardEvent,
@@ -14,44 +14,80 @@ from models.Event import (
 X_MIN, X_MAX = 2.0, 98.0
 Y_MIN, Y_MAX = 3.0, 97.0
 
+
 class EventSimulator(EventSource):
-    def __init__(self, match_id: str = None):
+    def __init__(
+        self,
+        match_id: str | None = None,
+        team_a_data: dict | None = None,
+        team_b_data: dict | None = None,
+        pause_event: asyncio.Event | None = None,
+    ):
         self.match_id = match_id or f"m_{uuid.uuid4().hex[:6]}"
         self.match_time = 0.0          # 0.0 to 5400.0 (90 mins in match seconds)
         self.full_time = 5400.0        # 90 minutes
         self.half_time = 2700.0        # 45 minutes
         self._second_half_started = False
-        self.real_tick_sleep = 1.0
         self.real_tick_sleep = 0.45
+        self._pause_event = pause_event
 
-        self.team_a = "Arsenal"        # Attacks Left -> Right (toward x = 98.0)
-        self.team_b = "Chelsea"        # Attacks Right -> Left (toward x = 2.0)
+        self.team_a = team_a_data["name"] if team_a_data else "North London Cannons"
+        self.team_b = team_b_data["name"] if team_b_data else "London Warriors"
         self.possession = self.team_a
 
-        # Absolute pitch coordinates (50, 50 is center circle)
         self.x = 50.0
         self.y = 50.0
-        self.current_player = "Odegaard"
-        self.last_passer: str | None = None
 
-        # Disciplinary & Red Card tracking
         self.player_yellows: dict[str, int] = {}
         self.sent_off_players: set[str] = set()
 
-        # Positional rosters for realistic player selection
         self.rosters = {
-            self.team_a: {
-                "GK": "Raya",
-                "DEF": ["Saliba", "Gabriel", "White", "Timber"],
-                "MID": ["Rice", "Odegaard", "Merino"],
-                "FWD": ["Saka", "Havertz", "Martinelli"],
-            },
-            self.team_b: {
-                "GK": "Sanchez",
-                "DEF": ["Colwill", "Fofana", "James", "Cucurella"],
-                "MID": ["Caicedo", "Enzo", "Palmer"],
-                "FWD": ["Jackson", "Neto", "Madueke"],
-            },
+            self.team_a: self._extract_roster(team_a_data, is_home=True),
+            self.team_b: self._extract_roster(team_b_data, is_home=False),
+        }
+
+        self.current_player = self.rosters[self.team_a]["MID"][0]
+        self.last_passer: str | None = None
+
+    @staticmethod
+    def _extract_roster(team_data: dict | None, is_home: bool) -> dict[str, str | List[str]]:
+        
+        #Fallbacks to North London Cannons (Arsenal) vs London Warriors (Chelsea)
+        if not team_data:
+            if is_home:
+                return {
+                    "GK": "Davi Rayner",
+                    "DEF": ["Willem Salibault", "Gabi Magallanes", "Benjamin Whyte", "Jorrien Timbers"],
+                    "MID": ["Declan Ryce", "Marty Odegard", "Miko Merinos"],
+                    "FWD": ["Buko Sakho", "Kaj Havertsen", "Noni Maduka"],
+                }
+            return {
+                "GK": "Dibu Martines",
+                "DEF": ["Levy Colwille", "Wes Fofanah", "Reece Jaymes", "Malou Gustoh"],
+                "MID": ["Moises Caycedo", "Kyle Plammer", "Romero Lavya"],
+                "FWD": ["Pedrinho Netoh", "Jao Pedra", "Estevan Willian"],
+            }
+
+        # Prefer starters from the club's tri-tier roster, falling back to all players
+        starters = team_data.get("roster", {}).get("starters") or team_data.get("players") or []
+        all_players = team_data.get("players") or starters
+
+        def by_pos(pos: str) -> list[str]:
+            names = [p["name"] for p in starters if p.get("position") == pos]
+            if not names:
+                names = [p["name"] for p in all_players if p.get("position") == pos]
+            return names
+
+        gks = by_pos("GK")
+        defs = by_pos("DEF")
+        mids = by_pos("MID")
+        fwds = by_pos("FWD")
+
+        return {
+            "GK": gks[0] if gks else "Goalkeeper",
+            "DEF": defs if defs else ["Defender"],
+            "MID": mids if mids else ["Midfielder"],
+            "FWD": fwds if fwds else ["Forward"],
         }
 
     @staticmethod
@@ -96,12 +132,17 @@ class EventSimulator(EventSource):
     # Main stream loop
     async def stream_events(self) -> AsyncGenerator[MatchEvent, None]:
         while self.match_time < self.full_time:
-            # Advances match clock by 10-14 seconds per tick (~90 mins in ~3.3 real mins)
-            time_step = random.uniform(20.0, 28.0)
-            self.match_time = min(self.full_time, self.match_time + time_step)
+            if self._pause_event is not None:
+                await self._pause_event.wait()
+
             await asyncio.sleep(self.real_tick_sleep)
 
-            # Halftime kickoff reset at 45:00 (2700s)
+            if self._pause_event is not None:
+                await self._pause_event.wait()
+
+            time_step = random.uniform(20.0, 28.0)
+            self.match_time = min(self.full_time, self.match_time + time_step)
+
             if not self._second_half_started and self.match_time >= self.half_time:
                 self._second_half_started = True
                 self.possession = self.team_b
@@ -204,9 +245,8 @@ class EventSimulator(EventSource):
         events: list[MatchEvent] = []
         goal_x = self._goal_x(self.possession)
         opposing_team = self._get_opposing_team()
-        opposing_gk = self.rosters[opposing_team]["GK"]
+        opposing_gk = str(self.rosters[opposing_team]["GK"])
 
-        # Calculates realistic distance to goal & xG
         dist_to_goal = max(4.0, math.hypot(goal_x - self.x, (50.0 - self.y) * 0.68))
         central_factor = max(0.2, 1.0 - (abs(50.0 - self.y) / 60.0))
         xg = round(min(0.65, max(0.03, (0.48 * math.exp(-dist_to_goal / 16.0)) * central_factor)), 2)
@@ -265,7 +305,6 @@ class EventSimulator(EventSource):
                 shot_event_id=shot.id,
                 difficulty=save_diff,
             ))
-            # 45% chance a save goes out for a corner (kept inside safe pitch bounds)
             if random.random() < 0.45:
                 corner_y = Y_MIN if self.y < 50.0 else Y_MAX
                 taker = self._pick_player(self.possession, 85.0)
@@ -280,7 +319,6 @@ class EventSimulator(EventSource):
                     y=corner_y,
                     type=EventType.CORNER,
                 ))
-                # Places ball slightly inside the box for the subsequent corner delivery
                 self.x = self._clamp_x(goal_x - (self._attack_dir() * 8.0))
                 self.y = self._clamp_y(50.0 + random.uniform(-12.0, 12.0))
                 self.current_player = self._pick_player(self.possession, 90.0, exclude=taker)
@@ -446,7 +484,7 @@ class EventSimulator(EventSource):
                     match_id=self.match_id,
                     timestamp=round(self.match_time + 5.5, 1),
                     team=opposing_team,
-                    player=self.rosters[opposing_team]["GK"],
+                    player=str(self.rosters[opposing_team]["GK"]),
                     x=goal_x,
                     y=50.0,
                     shot_event_id=pen_shot.id,

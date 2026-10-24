@@ -1,7 +1,7 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import { Session, Ticket, UserPreferences } from "../types";
 
-export const API_URL = "";
+export const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 const TICKET_MARGIN_MS = 20_000;
 const DEFAULT_ACCESS_TTL_MS = 900 * 1000;
 
@@ -19,12 +19,78 @@ export const isUnauthorized = (e: unknown) =>
 
 export const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Always send & receive HttpOnly cookies
+  withCredentials: true,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
+    "X-Requested-With": "tactica",
   },
 });
+
+let authenticated = false;
+let expiresAt = 0;
+let inflight: Promise<Session> | null = null;
+let epoch = 0;
+let onSessionRefreshedCallback: ((s: Session) => void) | null = null;
+
+export function setOnSessionRefreshed(cb: ((s: Session) => void) | null) {
+  onSessionRefreshedCallback = cb;
+}
+
+export const hasSession = () => authenticated && expiresAt > 0;
+export const msUntilExpiry = () => expiresAt - Date.now();
+export const sessionEpoch = () => epoch;
+
+export function markSessionRotated(ttlSeconds = 900): void {
+  authenticated = true;
+  expiresAt = Date.now() + ttlSeconds * 1000;
+}
+
+function apply(s: Session): Session {
+  authenticated = true;
+  expiresAt = Date.now() + (s.expires_in * 1000 || DEFAULT_ACCESS_TTL_MS);
+  onSessionRefreshedCallback?.(s);
+  return s;
+}
+
+export function clearSession(): void {
+  authenticated = false;
+  expiresAt = 0;
+  epoch += 1;
+}
+
+// Automatically refresh & retry once if any non-auth request fails with 401 after idle expiry
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config as
+      | (AxiosRequestConfig & { _retry?: boolean })
+      | undefined;
+    const url = original?.url || "";
+    const isAuthRoute =
+      url.includes("/api/auth/login") ||
+      url.includes("/api/auth/register") ||
+      url.includes("/api/auth/refresh") ||
+      url.includes("/api/auth/logout");
+
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !isAuthRoute
+    ) {
+      original._retry = true;
+      try {
+        await refreshSession();
+        return await api(original);
+      } catch {
+        // Refresh token itself is invalid/expired; let error propagate
+      }
+    }
+    return Promise.reject(error);
+  },
+);
 
 type Options = {
   cookieAuth?: boolean;
@@ -56,10 +122,7 @@ export async function request<T>(
   } catch (error) {
     if (axios.isAxiosError(error)) {
       if (!error.response) {
-        throw new ApiError(
-          0,
-          "Can't reach the server. Is the backend running?",
-        );
+        throw new ApiError(0, "Can't reach the server.");
       }
       const detail = error.response.data?.detail;
       let message = `Request failed (${error.response.status})`;
@@ -74,33 +137,6 @@ export async function request<T>(
     }
     throw error;
   }
-}
-
-let authenticated = false;
-let expiresAt = 0; // Access-cookie expiry as a Unix timestamp in milliseconds.
-let inflight: Promise<Session> | null = null;
-let epoch = 0; // Sign-out increments this to invalidate any refresh already in flight.
-
-export const hasSession = () => authenticated && expiresAt > 0;
-export const msUntilExpiry = () => expiresAt - Date.now();
-export const sessionEpoch = () => epoch;
-
-/** Call when an account route (e.g. /preferences, /change-username) rotates cookies. */
-export function markSessionRotated(ttlSeconds = 900): void {
-  authenticated = true;
-  expiresAt = Date.now() + ttlSeconds * 1000;
-}
-
-function apply(s: Session): Session {
-  authenticated = true;
-  expiresAt = Date.now() + (s.expires_in * 1000 || DEFAULT_ACCESS_TTL_MS);
-  return s;
-}
-
-export function clearSession(): void {
-  authenticated = false;
-  expiresAt = 0;
-  epoch += 1;
 }
 
 export async function login(
@@ -168,11 +204,5 @@ export async function fetchWsTicket(): Promise<string> {
   if (!hasSession() || msUntilExpiry() < TICKET_MARGIN_MS) {
     await refreshSession();
   }
-  try {
-    return (await request<Ticket>("POST", "/api/auth/ws-ticket")).ticket;
-  } catch (e) {
-    if (!isUnauthorized(e)) throw e;
-    await refreshSession();
-    return (await request<Ticket>("POST", "/api/auth/ws-ticket")).ticket;
-  }
+  return (await request<Ticket>("POST", "/api/auth/ws-ticket")).ticket;
 }

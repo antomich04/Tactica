@@ -28,9 +28,9 @@ import {
 import { Button } from "@/Components/button";
 import { Badge } from "@/Components/badge";
 import { Input } from "@/Components/input";
-import { API_URL } from "../Services/authService";
+import { api, ApiError } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
-import { fetchAllTeams } from "../Services/teamsService";
+import { clearTeamsCache, fetchAllTeams } from "../Services/teamsService";
 import type { ClubTeam, LanguageCode, PersonaCode } from "../types";
 
 type ModalType =
@@ -57,7 +57,7 @@ const SECURITY_GROUP_CLASSES =
   "flex flex-col gap-4 p-4 sm:p-5 bg-slate-950/50 border-2 border-slate-800 rounded-2xl";
 
 export function SettingsPage() {
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, patchUser, refreshUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -69,7 +69,6 @@ export function SettingsPage() {
       .catch(() => {});
   }, []);
 
-  // Preferences modal states
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(
     (user?.preferences?.language as LanguageCode) || "en",
   );
@@ -92,14 +91,12 @@ export function SettingsPage() {
 
   const isEmailVerified = Boolean(user?.email_verified) || verifiedJustNow;
 
-  // Sync local persona state when user object loads/updates
   useEffect(() => {
     if (user?.preferences?.persona) {
       setRole(user.preferences.persona as PersonaCode);
     }
   }, [user?.preferences?.persona]);
 
-  // Form states for modals
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [oldPassword, setOldPassword] = useState("");
@@ -116,7 +113,6 @@ export function SettingsPage() {
   } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Auto-dismiss the success toast after 4 seconds
   useEffect(() => {
     if (!toastMessage) return;
     const timer = window.setTimeout(() => setToastMessage(null), 4000);
@@ -141,6 +137,7 @@ export function SettingsPage() {
   };
 
   const extractError = (err: unknown) => {
+    if (err instanceof ApiError) return err.message;
     if (axios.isAxiosError(err)) {
       const detail = err.response?.data?.detail;
       if (typeof detail === "string") return detail;
@@ -151,7 +148,7 @@ export function SettingsPage() {
     return "Operation failed. Please try again.";
   };
 
-  // 0. POST /api/account/avatar (Profile Picture Upload to Azure Blob Storage)
+  // 0. POST /api/account/avatar
   const handleAvatarFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -162,11 +159,10 @@ export function SettingsPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await axios.post(`${API_URL}/api/account/avatar`, formData, {
-        withCredentials: true,
+      const res = await api.post("/api/account/avatar", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      await refreshUser();
+      patchUser({ avatar_url: res.data.avatar_url }, false);
       setToastMessage(
         res.data.message || "Profile picture updated successfully",
       );
@@ -178,21 +174,16 @@ export function SettingsPage() {
     }
   };
 
-  // 0b. PATCH /api/account/preferences (Persona, Language, Favorite Team & Player)
+  // 0b. PATCH /api/account/preferences
   const handlePersonaChange = async (nextPersona: PersonaCode) => {
     if (nextPersona === role || busy) return;
     const previous = role;
     setRole(nextPersona);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/preferences`,
-        { persona: nextPersona },
-        { withCredentials: true },
-      );
-      await refreshUser();
-      setToastMessage(
-        res.data.message || `Broadcast persona set to ${nextPersona}`,
-      );
+      const res = await api.patch("/api/account/preferences", {
+        persona: nextPersona,
+      });
+      patchUser({ preferences: res.data.preferences }, true);
     } catch (err) {
       setRole(previous);
       setToastMessage(extractError(err));
@@ -204,12 +195,10 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/preferences`,
-        { language: selectedLanguage },
-        { withCredentials: true },
-      );
-      await refreshUser();
+      const res = await api.patch("/api/account/preferences", {
+        language: selectedLanguage,
+      });
+      patchUser({ preferences: res.data.preferences }, true);
       finishWithToast(res.data.message || "Language updated successfully");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -223,15 +212,12 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/preferences`,
-        {
-          favorite_team: favoriteTeamInput.trim() || null,
-          favorite_player: favoritePlayerInput.trim() || null,
-        },
-        { withCredentials: true },
-      );
-      await refreshUser();
+      const res = await api.patch("/api/account/preferences", {
+        favorite_team: favoriteTeamInput.trim() || null,
+        favorite_player: favoritePlayerInput.trim() || null,
+      });
+      clearTeamsCache();
+      patchUser({ preferences: res.data.preferences }, true);
       finishWithToast(res.data.message || "Favorites updated successfully");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -246,12 +232,11 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/change-username`,
-        { username: newUsername.trim() },
-        { withCredentials: true },
-      );
-      await refreshUser();
+      const trimmed = newUsername.trim();
+      const res = await api.patch("/api/account/change-username", {
+        username: trimmed,
+      });
+      patchUser({ username: trimmed }, true);
       finishWithToast(res.data.message || "Username updated successfully");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -266,14 +251,13 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/change-email`,
-        { email: newEmail.trim() },
-        { withCredentials: true },
-      );
+      const trimmed = newEmail.trim();
+      const res = await api.patch("/api/account/change-email", {
+        email: trimmed,
+      });
       setVerifiedJustNow(false);
-      await refreshUser();
-      setVerifyEmailInput(newEmail.trim());
+      patchUser({ email: trimmed, email_verified: false }, true);
+      setVerifyEmailInput(trimmed);
       finishWithToast(res.data.message || "Email updated successfully");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -288,12 +272,11 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.patch(
-        `${API_URL}/api/account/change-password`,
-        { old_password: oldPassword, new_password: newPassword },
-        { withCredentials: true },
-      );
-      await refreshUser();
+      const res = await api.patch("/api/account/change-password", {
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+      patchUser({}, true);
       finishWithToast(res.data.message || "Password updated successfully");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -308,11 +291,9 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.post(
-        `${API_URL}/api/account/verify-email/request`,
-        { email: verifyEmailInput.trim() },
-        { withCredentials: true },
-      );
+      const res = await api.post("/api/account/verify-email/request", {
+        email: verifyEmailInput.trim(),
+      });
       setOtpSent(true);
       setFeedback({
         type: "success",
@@ -330,13 +311,11 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.post(
-        `${API_URL}/api/account/verify-email/confirm`,
-        { otp: otpCode.trim() },
-        { withCredentials: true },
-      );
+      const res = await api.post("/api/account/verify-email/confirm", {
+        otp: otpCode.trim(),
+      });
       setVerifiedJustNow(true);
-      await refreshUser();
+      patchUser({ email_verified: true }, false);
       finishWithToast(res.data.message || "Email successfully verified");
     } catch (err) {
       setFeedback({ type: "error", text: extractError(err) });
@@ -345,17 +324,15 @@ export function SettingsPage() {
     }
   };
 
-  // 5. 3-Step Forgot Password: /request -> /verify -> /reset
+  // 5. 3-Step Forgot Password
   const handleRequestForgotOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.post(
-        `${API_URL}/api/auth/forgot-password/request`,
-        { email: verifyEmailInput.trim() },
-        { withCredentials: true },
-      );
+      const res = await api.post("/api/auth/forgot-password/request", {
+        email: verifyEmailInput.trim(),
+      });
       setOtpSent(true);
       setFeedback({
         type: "success",
@@ -373,11 +350,10 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      await axios.post(
-        `${API_URL}/api/auth/forgot-password/verify`,
-        { email: verifyEmailInput.trim(), otp: otpCode.trim() },
-        { withCredentials: true },
-      );
+      await api.post("/api/auth/forgot-password/verify", {
+        email: verifyEmailInput.trim(),
+        otp: otpCode.trim(),
+      });
       setOtpVerified(true);
       setFeedback({
         type: "success",
@@ -395,21 +371,16 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      const res = await axios.post(
-        `${API_URL}/api/auth/forgot-password/reset`,
-        {
-          email: verifyEmailInput.trim(),
-          otp: otpCode.trim(),
-          new_password: newPassword,
-        },
-        { withCredentials: true },
-      );
+      const res = await api.post("/api/auth/forgot-password/reset", {
+        email: verifyEmailInput.trim(),
+        otp: otpCode.trim(),
+        new_password: newPassword,
+      });
       try {
-        await axios.post(
-          `${API_URL}/api/auth/login`,
-          { username_or_email: verifyEmailInput.trim(), password: newPassword },
-          { withCredentials: true },
-        );
+        await api.post("/api/auth/login", {
+          username_or_email: verifyEmailInput.trim(),
+          password: newPassword,
+        });
         await refreshUser();
       } catch {
         // Ignore if user chooses to log in manually later
@@ -427,9 +398,7 @@ export function SettingsPage() {
     setBusy(true);
     setFeedback(null);
     try {
-      await axios.delete(`${API_URL}/api/account/delete-account`, {
-        withCredentials: true,
-      });
+      await api.delete("/api/account/delete-account");
       closeModal();
       await logout();
       navigate("/Login");
@@ -450,7 +419,6 @@ export function SettingsPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:py-14 lg:px-8 flex flex-col gap-8 sm:gap-10">
-      {/* Floating Success Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border-2 border-emerald-500 text-emerald-400 px-5 py-4 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.25)] animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
@@ -477,7 +445,6 @@ export function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-6 sm:gap-8">
-        {/* Profile & Identity */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
@@ -529,7 +496,6 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* App Preferences */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
@@ -561,7 +527,6 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Account Security */}
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
@@ -615,7 +580,6 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Broadcast Persona */}
         <Card
           className={`${BASE_CARD_CLASSES} border-emerald-500/50 shadow-[0_0_25px_rgba(16,185,129,0.08)]`}
         >
@@ -655,9 +619,6 @@ export function SettingsPage() {
                   Emotion-driven commentary and basic play-by-play.
                 </span>
               </div>
-              {role === "casual" && (
-                <div className="absolute top-4 right-4 sm:top-5 sm:right-5 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              )}
             </button>
 
             <button
@@ -686,14 +647,10 @@ export function SettingsPage() {
                   Deep tactical insights, formation shifts, and metrics.
                 </span>
               </div>
-              {role === "analyst" && (
-                <div className="absolute top-4 right-4 sm:top-5 sm:right-5 w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-              )}
             </button>
           </CardContent>
         </Card>
 
-        {/* Delete Account */}
         <Card className={`${BASE_CARD_CLASSES} border-red-500/40 mt-2 sm:mt-6`}>
           <CardContent className="p-4 sm:p-5">
             <Button
@@ -718,7 +675,6 @@ export function SettingsPage() {
         </Card>
       </div>
 
-      {/* Action Modal Overlay */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-xs p-4">
           <div className="w-full max-w-md bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl">
