@@ -1,6 +1,7 @@
 import { createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "./Providers/AuthProvider";
 import { LoginPage } from "./Pages/LoginPage";
+import { ForgotPasswordPage } from "./Pages/ForgotPasswordPage";
 import { SignUpPage } from "./Pages/SignUpPage";
 import { MatchPage } from "./Pages/MatchPage";
 import { HomePage } from "./Pages/HomePage";
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
     element: <PublicGuard />,
     children: [
       { path: "/login", element: <LoginPage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
       { path: "/signup", element: <SignUpPage /> },
     ],
   },
