@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import { BookOpenText, LoaderCircle } from "lucide-react";
 import { api, ApiError } from "../Services/authService";
 import { fetchAllTeams, fetchNextMatch } from "../Services/teamsService";
 import { readSavedMatchup } from "../Services/matchupStorage";
@@ -11,13 +12,17 @@ import { LivePitch } from "../Components/LivePitch";
 import { MomentumGraph } from "../Components/MomentumGraph";
 import { MatchStats } from "../Components/MatchStats";
 import { MatchLineups } from "../Components/MatchLineups";
+import { MatchRecap as MatchRecapView } from "../Components/MatchRecap";
 import { openLiveStream } from "../Services/streamService";
 import { useTranslation } from "@/Utils/i18n";
+import { parseMessage } from "../Utils/match-logic";
 import type {
   ClubTeam,
   Envelope,
   MatchEvent,
   MatchMetrics,
+  MatchRecap,
+  MatchSummary,
   Overlay,
   Status,
 } from "../types";
@@ -35,6 +40,7 @@ export function MatchPage({ getWsTicket }: Props) {
     homeTeam?: ClubTeam;
     awayTeam?: ClubTeam;
   } | null;
+  const hasSelectedMatchup = Boolean(routeState?.homeTeam && routeState?.awayTeam);
 
   const [dbTeams, setDbTeams] = useState<[ClubTeam | null, ClubTeam | null]>([
     routeState?.homeTeam ?? null,
@@ -46,11 +52,67 @@ export function MatchPage({ getWsTicket }: Props) {
   const [status, setStatus] = useState<Status>("idle");
   const [detail, setDetail] = useState("");
   const matchTriggeredRef = useRef(false);
+  const userStartedMatchRef = useRef(false);
+  const expectedMatchIdRef = useRef<string | null>(null);
   const [streamGeneration, setStreamGeneration] = useState(0);
 
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const [latestMetrics, setLatestMetrics] = useState<MatchMetrics | null>(null);
+  const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
+  const [matchRecap, setMatchRecap] = useState<MatchRecap | null>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [showMatchRecap, setShowMatchRecap] = useState(false);
+
+  useEffect(() => {
+    if (hasSelectedMatchup) return;
+
+    let active = true;
+    void api
+      .get("/api/match/recap/latest")
+      .then((response) => {
+        if (!active || userStartedMatchRef.current) return;
+        const saved = response.data?.match;
+        if (!saved) return;
+
+        const ended = parseMessage(
+          JSON.stringify({ kind: "match_ended", data: saved.summary }),
+        );
+        const recap = parseMessage(
+          JSON.stringify({ kind: "match_recap", data: saved.recap }),
+        );
+        if (ended?.kind === "match_ended" && recap?.kind === "match_recap") {
+          setMatchSummary(ended.data);
+          setMatchRecap(recap.data);
+          setStatus("ended");
+          setDetail("Full time");
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          console.warn("Could not restore the previous match recap.", error);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [hasSelectedMatchup]);
+
+  useEffect(() => {
+    if (
+      matchSummary &&
+      matchRecap?.match_id === matchSummary.match_id &&
+      recapLoading
+    ) {
+      setRecapLoading(false);
+    }
+  }, [matchSummary, matchRecap, recapLoading]);
+
+  useEffect(() => {
+    if (!matchSummary || !recapLoading) return;
+    const timeout = window.setTimeout(() => setRecapLoading(false), 30_000);
+    return () => window.clearTimeout(timeout);
+  }, [matchSummary, recapLoading]);
 
   useEffect(() => {
     if (dbTeams[0] && dbTeams[1]) return;
@@ -117,6 +179,30 @@ export function MatchPage({ getWsTicket }: Props) {
         if (prev.some((o) => o.id === overlayData.id)) return prev;
         return [...prev, overlayData];
       });
+    } else if (env.kind === "match_ended") {
+      if (
+        userStartedMatchRef.current &&
+        expectedMatchIdRef.current !== env.data.match_id
+      ) {
+        return;
+      }
+      setShowMatchRecap(false);
+      setMatchSummary(env.data);
+      setRecapLoading(true);
+      setMatchRecap((current) =>
+        current?.match_id === env.data.match_id ? current : null,
+      );
+      setPaused(false);
+      setStatus("ended");
+      setDetail("Full time");
+    } else if (env.kind === "match_recap") {
+      if (
+        userStartedMatchRef.current &&
+        expectedMatchIdRef.current !== env.data.match_id
+      ) {
+        return;
+      }
+      setMatchRecap(env.data);
     }
   }, []);
 
@@ -140,11 +226,16 @@ export function MatchPage({ getWsTicket }: Props) {
         if (next === "live" && !matchTriggeredRef.current) {
           matchTriggeredRef.current = true;
           try {
-            await api.post("/api/match/start", {
+            const response = await api.post("/api/match/start", {
               home_team: dbTeams[0]?.name ?? null,
               away_team: dbTeams[1]?.name ?? null,
               restart: true,
             });
+            const matchId = response.data?.match_id;
+            if (typeof matchId !== "string") {
+              throw new Error("Match start response did not include a match ID.");
+            }
+            expectedMatchIdRef.current = matchId;
           } catch (error) {
             const message =
               error instanceof ApiError
@@ -188,10 +279,15 @@ export function MatchPage({ getWsTicket }: Props) {
   );
 
   const toggleMatch = async () => {
-    if (now >= 5400 || matchStopped) {
+    userStartedMatchRef.current = true;
+    if (matchSummary || now >= 5400 || matchStopped) {
+      expectedMatchIdRef.current = null;
       setEvents([]);
       setOverlays([]);
       setLatestMetrics(null);
+      setMatchSummary(null);
+      setMatchRecap(null);
+      setRecapLoading(false);
       setDetail("");
       setPaused(false);
       setMatchStopped(false);
@@ -206,9 +302,13 @@ export function MatchPage({ getWsTicket }: Props) {
 
     // 1. Kick off a brand new match
     if (!streamActive) {
+      expectedMatchIdRef.current = null;
       setEvents([]);
       setOverlays([]);
       setLatestMetrics(null);
+      setMatchSummary(null);
+      setMatchRecap(null);
+      setRecapLoading(false);
       setDetail("");
       setPaused(false);
       setMatchStopped(false);
@@ -278,6 +378,19 @@ export function MatchPage({ getWsTicket }: Props) {
 
   const isRunning = streamActive && !paused;
 
+  if (matchSummary && showMatchRecap && !recapLoading) {
+    return (
+      <MatchRecapView
+        summary={matchSummary}
+        recap={matchRecap?.match_id === matchSummary.match_id ? matchRecap : null}
+        recapLoading={recapLoading}
+        onRestart={() => void toggleMatch()}
+        onBackToSelection={() => navigate("/home")}
+        onClose={() => setShowMatchRecap(false)}
+      />
+    );
+  }
+
   return (
     <div className="max-w-[1500px] w-full mx-auto p-3 flex flex-col gap-4 min-h-[calc(100vh-100px)]">
       <div className="shrink-0">
@@ -289,7 +402,7 @@ export function MatchPage({ getWsTicket }: Props) {
           awayColor={awayColor}
           running={isRunning}
           paused={paused}
-          finished={now >= 5400 || matchStopped}
+          finished={Boolean(matchSummary) || now >= 5400 || matchStopped}
           status={paused ? "idle" : status}
           detail={paused ? "PAUSED" : detail}
           onToggleMatch={toggleMatch}
@@ -297,6 +410,29 @@ export function MatchPage({ getWsTicket }: Props) {
           onChangeMatch={() => navigate("/home")}
         />
       </div>
+
+      {matchSummary && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowMatchRecap(true)}
+            disabled={recapLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white transition hover:bg-emerald-500 disabled:cursor-wait disabled:opacity-70"
+          >
+            {recapLoading ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Preparing recap
+              </>
+            ) : (
+              <>
+                <BookOpenText className="h-4 w-4" />
+                Watch recap
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       <main className="flex flex-col gap-6 flex-1 min-h-0 lg:grid lg:grid-cols-[1fr_450px] xl:grid-cols-[1fr_500px] lg:items-stretch lg:gap-4">
         <section className="flex flex-col gap-4 min-w-0">

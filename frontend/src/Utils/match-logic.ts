@@ -1,4 +1,12 @@
-import type { Envelope, MatchEvent, MatchMetrics, MomentumPoint, Overlay } from "../types";
+import type {
+  Envelope,
+  MatchEvent,
+  MatchMetrics,
+  MatchRecap,
+  MatchSummary,
+  MomentumPoint,
+  Overlay,
+} from "../types";
 
 export const clock = (seconds: number) => {
   const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -95,6 +103,55 @@ function isOverlay(value: unknown): value is Overlay {
   );
 }
 
+function isMatchSummary(value: unknown): value is MatchSummary {
+  if (!isRecord(value) || !isRecord(value.stats)) return false;
+  const stats = value.stats;
+  const validTeamStats = (teamStats: unknown) =>
+    isRecord(teamStats) &&
+    [
+      "shots",
+      "shots_on_target",
+      "passes_attempted",
+      "passes_completed",
+      "corners",
+      "yellow_cards",
+      "red_cards",
+    ].every((field) => isFiniteNumber(teamStats[field]));
+
+  return (
+    typeof value.match_id === "string" &&
+    typeof value.home_team === "string" &&
+    typeof value.away_team === "string" &&
+    isFiniteNumber(value.home_score) &&
+    isFiniteNumber(value.away_score) &&
+    isFiniteNumber(value.match_time) &&
+    validTeamStats(stats.home) &&
+    validTeamStats(stats.away) &&
+    Array.isArray(value.key_events) &&
+    value.key_events.every(
+      (event) =>
+        isRecord(event) &&
+        typeof event.type === "string" &&
+        isFiniteNumber(event.timestamp) &&
+        typeof event.team === "string" &&
+        typeof event.player === "string" &&
+        (event.details === undefined ||
+          event.details === null ||
+          typeof event.details === "string"),
+    )
+  );
+}
+
+function isMatchRecap(value: unknown): value is MatchRecap {
+  return (
+    isRecord(value) &&
+    typeof value.match_id === "string" &&
+    typeof value.language === "string" &&
+    typeof value.persona === "string" &&
+    typeof value.text === "string"
+  );
+}
+
 function parseMomentum(value: unknown): MomentumPoint | undefined {
   if (!isRecord(value)) return undefined;
   if (isFiniteNumber(value.timestamp) && isFiniteNumber(value.score)) {
@@ -154,6 +211,12 @@ export function parseMessage(raw: string): Envelope | null {
   }
 
   if (isRecord(message)) {
+    if (message.kind === "match_ended" && isMatchSummary(message.data)) {
+      return { kind: "match_ended", data: message.data };
+    }
+    if (message.kind === "match_recap" && isMatchRecap(message.data)) {
+      return { kind: "match_recap", data: message.data };
+    }
     if (message.kind === "event" && isMatchEvent(message.data)) {
       const momentum = parseMomentum(message.momentum);
       return {

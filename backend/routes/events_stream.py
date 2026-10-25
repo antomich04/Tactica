@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api")
 @router.websocket("/events-stream")
 async def stream_events(websocket: WebSocket, user: dict = Depends(get_ws_user)):
     await websocket.accept()
-    await broadcaster.register_event_client(websocket)
+    await broadcaster.register_event_client(websocket, user)
     
     try:
         while True:

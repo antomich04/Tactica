@@ -21,8 +21,11 @@ class LocalizerExecutor(Executor):
             instructions=(
                 "Rewrite the verified football broadcast line for the target Persona and Language "
                 "without adding, removing, or changing factual claims or numbers.\n"
-                "- 'analyst': Use tactical terms only when they preserve the source meaning.\n"
-                "- 'casual': Make the same facts exciting and punchy.\n"
+                "- 'casual': Make the same facts emotionally engaging, warm, and punchy; do not "
+                "invent drama or change the source claims.\n"
+                "- 'analyst': Prefer a restrained, data-driven delivery and precise football "
+                "language only when it preserves the source meaning; avoid emotional "
+                "embellishment and do not add statistics.\n"
                 "- 'newcomer': Clarify jargon without adding new match facts.\n"
                 "- 'club_fan': Adapt the tone around the user's favorite club without changing facts.\n"
                 "Translate accurately into the requested language code (en, es, pt, gr)."

@@ -19,16 +19,31 @@ export function ActiveOverlay({ active, teams }: Props) {
   const { t } = useTranslation();
   const [display, setDisplay] = useState<Overlay | null>(null);
 
+  // Show each new overlay immediately, but let rich insights finish before
+  // replacing them with lower-priority fast templates.
   useEffect(() => {
-    if (active && active.id !== display?.id) {
-      setDisplay(active);
-    }
-  }, [active, display?.id]);
+    if (!active) return;
+    setDisplay((current) => {
+      if (current?.id === active.id) return current;
+      if (
+        current?.meta?.tier === "rich_agentic" &&
+        active.meta?.tier !== "rich_agentic"
+      ) {
+        return current;
+      }
+      return active;
+    });
+  }, [active]);
 
+  // Honor the duration supplied by the broadcaster; keep rich insights visible
+  // long enough to read even if their configured duration is shorter.
   useEffect(() => {
     if (display) {
       const isRichAi = display.meta?.tier === "rich_agentic";
-      const holdMs = isRichAi ? 5000 : 3500;
+      const holdMs = Math.max(
+        display.duration * 1000,
+        isRichAi ? 8000 : 3500,
+      );
 
       const timer = setTimeout(() => {
         setDisplay(null);
@@ -113,9 +128,9 @@ export function ActiveOverlay({ active, teams }: Props) {
         className={`absolute left-0 top-0 bottom-0 w-1.5 ${theme.accent} shadow-[0_0_15px_currentColor]`}
       />
 
-      <div className="relative z-10 p-3.5 pl-5 flex flex-col h-full justify-between">
+      <div className="relative z-10 p-3.5 pl-5 flex flex-col h-full min-h-0">
         {/* Top Header Row */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex shrink-0 items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div
               className={`flex items-center justify-center w-6 h-6 rounded bg-slate-950/50 border ${theme.border} shrink-0`}
@@ -123,7 +138,7 @@ export function ActiveOverlay({ active, teams }: Props) {
               <Icon className={`w-3.5 h-3.5 ${theme.text}`} />
             </div>
             <span
-              className={`${theme.text} font-black uppercase tracking-widest text-[11px] truncate`}
+              className={`${theme.text} min-w-0 font-black uppercase tracking-widest text-[11px]`}
             >
               {theme.label}
             </span>
@@ -147,11 +162,11 @@ export function ActiveOverlay({ active, teams }: Props) {
         </div>
 
         {/* Main Broadcast Text */}
-        <div className="my-auto py-1">
-          <p className="text-white font-black text-xs uppercase tracking-wider leading-tight truncate opacity-75">
+        <div className="my-1 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <p className="break-words text-white font-black text-xs uppercase tracking-wider leading-tight opacity-75">
             {display.type.replace("_", " ")}
           </p>
-          <p className="text-slate-100 font-semibold text-sm sm:text-base mt-0.5 line-clamp-3 leading-snug">
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-slate-100 font-semibold text-sm sm:text-base leading-snug">
             {display.text}
           </p>
         </div>
