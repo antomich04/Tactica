@@ -1,4 +1,3 @@
-@import "@fontsource-variable/geist";
 @import "tw-animate-css";
 
 @tailwind base;
@@ -7,7 +6,6 @@
 
 @layer base {
   :root {
-    /* Theme colors shared by the application components. */
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
     --card: 222 47% 11%;
@@ -33,7 +31,6 @@
     --ring: 217 91% 60%;            
     --radius: 0.5rem;
 
-    /* Colors and fonts used by the match display. */
     --floor: #0f172a;
     --ink: #f8fafc;
     --panel: #1e293b;
@@ -44,8 +41,8 @@
     --home: #3b82f6;
     --away: #e39a12;
     --hl: #334155;
-    --sans: "Barlow", system-ui, sans-serif;
-    --cond: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --cond: "Roboto Condensed", "Plus Jakarta Sans", system-ui, sans-serif;
   }
 }
 
@@ -53,10 +50,38 @@
   * {
     @apply border-border;
     box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
   }
-  body {
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #0f172a;
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #334155;
+    border-radius: 9999px;
+    border: 2px solid #0f172a;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #475569;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: #0f172a;
+  }
+
+  body, button, input, select, textarea {
     @apply bg-background text-foreground;
     margin: 0;
-    font: 400 16px/1.45 var(--sans);
+    font-family: var(--sans);
+    line-height: 1.45;
   }
 }

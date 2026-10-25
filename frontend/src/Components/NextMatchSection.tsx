@@ -2,6 +2,7 @@ import { Button } from "@/Components/button";
 import { Card, CardContent } from "@/Components/card";
 import { Badge } from "@/Components/badge";
 import { TeamCrest } from "./TeamCrest";
+import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam } from "../types";
 
 interface NextMatchSectionProps {
@@ -15,10 +16,12 @@ export function NextMatchSection({
   awayTeam,
   onWatch,
 }: NextMatchSectionProps) {
+  const { t } = useTranslation();
+
   return (
     <section className="flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300">
       <h2 className="text-xl sm:text-2xl mb-4 md:mb-6 text-white font-bold tracking-wide">
-        Next Match
+        {t("nextMatch")}
       </h2>
       <Card className="relative bg-slate-800 rounded-3xl overflow-hidden shadow-2xl border-none w-full">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-emerald-950/20 opacity-90 pointer-events-none" />
@@ -45,14 +48,14 @@ export function NextMatchSection({
               {homeTeam.stadium_name.toUpperCase()}
             </Badge>
             <span className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-400 tracking-tighter leading-none drop-shadow-lg mb-3 md:mb-5">
-              VS
+              {t("vs")}
             </span>
 
             <Button
               onClick={onWatch}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-black tracking-widest px-4 py-2 text-xs sm:px-6 sm:py-5 sm:text-sm md:px-8 md:py-6 md:text-lg rounded-lg md:rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.25)] transition-all hover:scale-105 border border-emerald-400/50 cursor-pointer"
             >
-              WATCH NOW
+              {t("watchNow")}
             </Button>
           </div>
 

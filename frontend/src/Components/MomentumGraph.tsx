@@ -1,4 +1,5 @@
 import { Shield } from "lucide-react";
+import { useTranslation } from "../Utils/i18n";
 import type { MatchEvent, MatchMetrics } from "../types";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function MomentumGraph({ metrics, teams, colorOf, latestEvent }: Props) {
+  const { t } = useTranslation();
   const homeTeam = teams[0] || "Home";
   const awayTeam = teams[1] || "Away";
 
@@ -30,8 +32,8 @@ export function MomentumGraph({ metrics, teams, colorOf, latestEvent }: Props) {
 
   return (
     <div className="w-full h-full bg-slate-900 border border-slate-600 rounded-xl p-3 flex flex-col justify-center shadow-lg overflow-hidden">
-      <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2 text-center">
-        Live Momentum Tracker
+      <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 text-center">
+        {t("liveMomentumTracker")}
       </div>
 
       {/* Momentum Banner */}

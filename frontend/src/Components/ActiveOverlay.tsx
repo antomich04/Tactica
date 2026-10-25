@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Overlay } from "../types";
+import { useTranslation } from "../Utils/i18n";
 import {
   Radio,
   Activity,
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function ActiveOverlay({ active, teams }: Props) {
+  const { t } = useTranslation();
   const [display, setDisplay] = useState<Overlay | null>(null);
 
   // Show each new overlay immediately, but let rich insights finish before
@@ -56,7 +58,7 @@ export function ActiveOverlay({ active, teams }: Props) {
       <div className="w-full h-full bg-slate-900 border border-slate-700/50 rounded-xl p-4 flex flex-col items-center justify-center text-slate-500 shadow-lg transition-all relative overflow-hidden">
         <Radio className="w-6 h-6 mb-2 opacity-20" />
         <span className="text-xs font-bold tracking-widest uppercase opacity-40">
-          Broadcast Feed Clear
+          {t("broadcastFeedClear")}
         </span>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800/20 via-transparent to-transparent opacity-50" />
       </div>
@@ -84,7 +86,7 @@ export function ActiveOverlay({ active, teams }: Props) {
         text: "text-blue-400",
         border: "border-blue-500/30",
         icon: Activity,
-        label: "Tactical Analyst",
+        label: t("tacticalAnalyst"),
       }
     : {
         bg: "bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-900",
@@ -92,7 +94,7 @@ export function ActiveOverlay({ active, teams }: Props) {
         text: "text-emerald-400",
         border: "border-emerald-500/30",
         icon: Mic,
-        label: "Live Commentary",
+        label: t("liveCommentary"),
       };
 
   if (isHome) {
@@ -102,7 +104,7 @@ export function ActiveOverlay({ active, teams }: Props) {
       text: "text-red-400",
       border: "border-red-500/30",
       icon: Shield,
-      label: `${homeTeam} Alert`,
+      label: `${homeTeam} ${t("alertSuffix")}`,
     };
   } else if (isAway) {
     theme = {
@@ -111,7 +113,7 @@ export function ActiveOverlay({ active, teams }: Props) {
       text: "text-blue-400",
       border: "border-blue-500/30",
       icon: Shield,
-      label: `${awayTeam} Alert`,
+      label: `${awayTeam} ${t("alertSuffix")}`,
     };
   }
 
@@ -146,13 +148,13 @@ export function ActiveOverlay({ active, teams }: Props) {
             {isRichAi ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-400/30 text-purple-300 text-[10px] font-bold uppercase tracking-wider">
                 <Sparkles className="w-3 h-3 text-purple-400" />
-                AI Insight
+                {t("aiInsight")}
               </span>
             ) : (
               display.verified && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
                   <CheckCircle2 className="w-3 h-3" />
-                  Live
+                  {t("live")}
                 </span>
               )
             )}

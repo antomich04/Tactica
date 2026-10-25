@@ -9,10 +9,12 @@ import {
   readSavedMatchup,
   saveMatchup,
 } from "../Services/matchupStorage";
+import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam } from "../types";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [teams, setTeams] = useState<ClubTeam[]>([]);
   const [homeTeam, setHomeTeam] = useState<ClubTeam | null>(null);
   const [awayTeam, setAwayTeam] = useState<ClubTeam | null>(null);
@@ -76,7 +78,7 @@ export function HomePage() {
     return (
       <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center">
         <p className="text-slate-400 font-bold tracking-wider uppercase animate-pulse">
-          Loading Premier League Clubs...
+          {t("loadingClubs")}
         </p>
       </div>
     );
@@ -86,7 +88,7 @@ export function HomePage() {
     return (
       <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center px-4">
         <p className="text-red-400 font-bold text-center">
-          {error || "Not enough teams available in database."}
+          {error || t("notEnoughTeams")}
         </p>
       </div>
     );

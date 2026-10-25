@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   Mic,
@@ -11,6 +11,7 @@ import {
   Mail,
   Camera,
   ChevronRight,
+  ArrowLeft,
   X,
   CheckCircle2,
   AlertCircle,
@@ -27,6 +28,7 @@ import { Badge } from "@/Components/badge";
 import { Input } from "@/Components/input";
 import { api, ApiError } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
+import { useTranslation } from "../Utils/i18n";
 import type { PersonaCode } from "../types";
 
 type ModalType =
@@ -44,7 +46,10 @@ const SECURITY_GROUP_CLASSES =
 
 export function SettingsPage() {
   const { user, logout, patchUser } = useAuth();
+  const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
+  const returnTo = (location.state as { returnTo?: unknown } | null)?.returnTo;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [role, setRole] = useState<PersonaCode>(
@@ -55,6 +60,17 @@ export function SettingsPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   const isEmailVerified = Boolean(user?.email_verified) || verifiedJustNow;
+  const handleGoBack = () => {
+    if (
+      typeof returnTo === "string" &&
+      returnTo.startsWith("/") &&
+      !returnTo.startsWith("//")
+    ) {
+      navigate(returnTo);
+      return;
+    }
+    navigate("/home");
+  };
 
   useEffect(() => {
     if (user?.preferences?.persona) {
@@ -146,7 +162,10 @@ export function SettingsPage() {
       const res = await api.patch("/api/account/preferences", {
         persona: nextPersona,
       });
-      patchUser({ preferences: res.data.preferences }, true);
+      patchUser(
+        { preferences: res.data.user?.preferences ?? res.data.preferences },
+        true,
+      );
     } catch (err) {
       setRole(previous);
       setToastMessage(extractError(err));
@@ -268,6 +287,15 @@ export function SettingsPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:py-14 lg:px-8 flex flex-col gap-8 sm:gap-10">
+      <button
+        type="button"
+        onClick={handleGoBack}
+        className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-300 transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("back")}
+      </button>
+
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border-2 border-emerald-500 text-emerald-400 px-5 py-4 rounded-2xl shadow-[0_10px_30px_rgba(16,185,129,0.25)] animate-in fade-in slide-in-from-bottom-4 duration-200">
           <CheckCircle2 className="w-6 h-6 shrink-0 text-emerald-400" />
@@ -286,10 +314,10 @@ export function SettingsPage() {
 
       <div className="flex flex-col gap-2 border-b-2 border-slate-800 pb-6 sm:pb-8">
         <h1 className="text-3xl sm:text-5xl font-black text-white uppercase tracking-wider">
-          Settings
+          {t("settingsTitle")}
         </h1>
         <p className="text-slate-400 text-sm sm:text-base font-medium mt-1">
-          Manage your identity, security, and broadcast preferences.
+          {t("settingsSub")}
         </p>
       </div>
 
@@ -297,7 +325,7 @@ export function SettingsPage() {
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
-              Profile & Identity
+              {t("profileIdentity")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
@@ -332,14 +360,14 @@ export function SettingsPage() {
                 variant="outline"
                 className="absolute -bottom-3 shadow-md border-2 border-slate-700 bg-slate-800 text-slate-300 px-4 py-1 text-xs sm:text-sm whitespace-nowrap"
               >
-                {avatarUploading ? "Uploading..." : "Edit Avatar"}
+                {avatarUploading ? t("uploading") : t("editAvatar")}
               </Badge>
             </button>
 
             <SettingAction
               icon={<User />}
-              title="Change Username"
-              subtitle={`Currently: ${user?.username ?? "Loading..."}`}
+              title={t("changeUsername")}
+              subtitle={`${t("currently")}: ${user?.username ?? "..."}`}
               onClick={() => setActiveModal("username")}
             />
           </CardContent>
@@ -348,26 +376,26 @@ export function SettingsPage() {
         <Card className={BASE_CARD_CLASSES}>
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest">
-              Account Security
+              {t("accountSecurity")}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             <div className={SECURITY_GROUP_CLASSES}>
               <SettingAction
                 icon={<Mail />}
-                title="Change Email"
+                title={t("changeEmail")}
                 subtitle={
                   user?.email
-                    ? `Currently: ${user.email}`
-                    : "Update your contact address"
+                    ? `${t("currently")}: ${user.email}`
+                    : t("updateContactAddress")
                 }
                 onClick={() => setActiveModal("email")}
               />
               <SettingAction
                 icon={<ShieldCheck />}
-                title="Verify Email"
+                title={t("verifyEmail")}
                 subtitle={
-                  isEmailVerified ? "Status: Verified" : "Status: Unverified"
+                  isEmailVerified ? t("statusVerified") : t("statusUnverified")
                 }
                 status={isEmailVerified ? "verified" : "warning"}
                 onClick={() => {
@@ -381,8 +409,8 @@ export function SettingsPage() {
             <div className={SECURITY_GROUP_CLASSES}>
               <SettingAction
                 icon={<Key />}
-                title="Change Password"
-                subtitle="Update your credentials"
+                title={t("changePassword")}
+                subtitle={t("updateCredentials")}
                 onClick={() => setActiveModal("password")}
               />
             </div>
@@ -394,11 +422,10 @@ export function SettingsPage() {
         >
           <CardHeader className="pb-5">
             <CardTitle className="text-sm font-black text-emerald-500 uppercase tracking-widest">
-              Broadcast Persona
+              {t("broadcastPersona")}
             </CardTitle>
             <CardDescription className="text-slate-400 text-sm sm:text-base mt-1">
-              Select how you want to receive live match updates on the
-              dashboard.
+              {t("broadcastPersonaSub")}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
@@ -422,10 +449,10 @@ export function SettingsPage() {
                 <span
                   className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "casual" ? "text-emerald-400" : "text-slate-300"}`}
                 >
-                  Casual Fan
+                  {t("casualFan")}
                 </span>
                 <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-                  Emotion-driven commentary and basic play-by-play.
+                  {t("casualFanDesc")}
                 </span>
               </div>
             </button>
@@ -450,10 +477,10 @@ export function SettingsPage() {
                 <span
                   className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "analyst" ? "text-blue-400" : "text-slate-300"}`}
                 >
-                  Tactical Analyst
+                  {t("tacticalAnalystPersona")}
                 </span>
                 <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-                  Deep tactical insights, formation shifts, and metrics.
+                  {t("tacticalAnalystDesc")}
                 </span>
               </div>
             </button>
@@ -471,10 +498,10 @@ export function SettingsPage() {
                 <Trash2 className="w-6 h-6 text-red-500 group-hover:scale-110 transition-transform shrink-0" />
                 <div className="flex flex-col text-left">
                   <span className="text-sm sm:text-base font-bold text-red-400">
-                    Delete Account
+                    {t("deleteAccount")}
                   </span>
                   <span className="text-xs sm:text-sm text-red-500/70 font-normal mt-0.5">
-                    Permanently remove your data
+                    {t("deleteAccountDesc")}
                   </span>
                 </div>
               </div>
@@ -489,11 +516,11 @@ export function SettingsPage() {
           <div className="w-full max-w-md bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 flex flex-col gap-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-xl font-black text-white uppercase tracking-wide">
-                {activeModal === "username" && "Change Username"}
-                {activeModal === "email" && "Change Email"}
-                {activeModal === "password" && "Change Password"}
-                {activeModal === "verify_email" && "Verify Email"}
-                {activeModal === "delete_account" && "Delete Account"}
+                {activeModal === "username" && t("changeUsername")}
+                {activeModal === "email" && t("changeEmail")}
+                {activeModal === "password" && t("changePassword")}
+                {activeModal === "verify_email" && t("verifyEmail")}
+                {activeModal === "delete_account" && t("deleteAccount")}
               </h3>
               <button
                 type="button"
@@ -529,7 +556,7 @@ export function SettingsPage() {
                 <Input
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder="New username (3-64 chars)"
+                  placeholder={`${t("changeUsername")}...`}
                   className="h-12 bg-slate-950 text-white border-slate-700"
                   required
                 />
@@ -538,7 +565,7 @@ export function SettingsPage() {
                   disabled={busy}
                   className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
                 >
-                  {busy ? "Updating..." : "Save Username"}
+                  {busy ? t("saving") : t("saveUsername")}
                 </Button>
               </form>
             )}
@@ -552,7 +579,7 @@ export function SettingsPage() {
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="New email address"
+                  placeholder={`${t("changeEmail")}...`}
                   className="h-12 bg-slate-950 text-white border-slate-700"
                   required
                 />
@@ -561,7 +588,7 @@ export function SettingsPage() {
                   disabled={busy}
                   className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
                 >
-                  {busy ? "Updating..." : "Save Email"}
+                  {busy ? t("saving") : t("saveEmail")}
                 </Button>
               </form>
             )}
@@ -583,7 +610,7 @@ export function SettingsPage() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="New password (8+ chars, 1 A-Z, 1 !@#$%^&*)"
+                  placeholder="New password"
                   className="h-12 bg-slate-950 text-white border-slate-700"
                   required
                 />
@@ -592,7 +619,7 @@ export function SettingsPage() {
                   disabled={busy}
                   className="bg-blue-500 hover:bg-blue-600 text-white h-12 font-bold"
                 >
-                  {busy ? "Updating..." : "Update Password"}
+                  {busy ? t("saving") : t("updatePasswordBtn")}
                 </Button>
               </form>
             )}
@@ -619,7 +646,7 @@ export function SettingsPage() {
                       disabled={busy}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 font-bold"
                     >
-                      {busy ? "Sending OTP..." : "Send Verification Code"}
+                      {busy ? t("saving") : t("sendVerificationCode")}
                     </Button>
                   </>
                 ) : (
@@ -638,7 +665,7 @@ export function SettingsPage() {
                       disabled={busy}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white h-12 font-bold"
                     >
-                      {busy ? "Verifying..." : "Confirm OTP"}
+                      {busy ? t("saving") : t("confirmOtp")}
                     </Button>
                   </>
                 )}
@@ -648,8 +675,7 @@ export function SettingsPage() {
             {activeModal === "delete_account" && (
               <div className="flex flex-col gap-4">
                 <p className="text-slate-300 text-sm">
-                  Are you sure you want to permanently delete your account? This
-                  action cannot be undone.
+                  {t("deleteAccountDesc")}
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -658,7 +684,7 @@ export function SettingsPage() {
                     onClick={closeModal}
                     className="flex-1 h-12"
                   >
-                    Cancel
+                    {t("cancel")}
                   </Button>
                   <Button
                     type="button"
@@ -667,7 +693,7 @@ export function SettingsPage() {
                     disabled={busy}
                     className="flex-1 h-12 bg-red-600 hover:bg-red-500 text-white font-bold"
                   >
-                    {busy ? "Deleting..." : "Confirm Delete"}
+                    {busy ? t("saving") : t("confirmDelete")}
                   </Button>
                 </div>
               </div>

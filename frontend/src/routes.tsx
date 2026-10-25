@@ -45,11 +45,18 @@ function MatchPageWrapper() {
 
 export const router = createBrowserRouter([
   {
+    path: "/",
+    element: <Navigate to="/home" replace />,
+  },
+  {
     element: <PublicGuard />,
     children: [
       { path: "/login", element: <LoginPage /> },
+      { path: "/Login", element: <Navigate to="/login" replace /> },
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/ signup", element: <Navigate to="/signup" replace /> },
       { path: "/signup", element: <SignUpPage /> },
+      { path: "/SignUp", element: <Navigate to="/signup" replace /> },
     ],
   },
   {
@@ -59,8 +66,11 @@ export const router = createBrowserRouter([
         element: <MainLayout />,
         children: [
           { path: "/home", element: <HomePage /> },
+          { path: "/Home", element: <Navigate to="/home" replace /> },
           { path: "/match", element: <MatchPageWrapper /> },
+          { path: "/Match", element: <Navigate to="/match" replace /> },
           { path: "/settings", element: <SettingsPage /> },
+          { path: "/Settings", element: <Navigate to="/settings" replace /> },
         ],
       },
     ],
