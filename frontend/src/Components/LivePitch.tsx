@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "../Utils/i18n";
-import type { ClubTeam, MatchEvent, TeamPlayer } from "../types";
+import type { ClubTeam, MatchEvent, SetPieceEvent, TeamPlayer } from "../types";
 
 interface LivePitchProps {
   events: MatchEvent[];
@@ -14,15 +14,82 @@ function getDynamicPlayerCoordinates(
   team: ClubTeam,
   isAway: boolean,
   playersAtPosition: TeamPlayer[],
+  allPlayers: TeamPlayer[],
   ballX: number,
   ballY: number,
   latestEvent?: MatchEvent,
+  penaltyEvent?: SetPieceEvent & { type: "penalty" },
+  penaltyShot?: MatchEvent,
 ) {
   const color = isAway ? team.secondary_color : team.primary_color;
 
-  // 1. If this player is the active actor on the ball right now, move them to the ball!
+  if (penaltyEvent) {
+    const penaltyTeamIsAway = penaltyEvent.team === team.name ? isAway : !isAway;
+    const attackingDirection = penaltyTeamIsAway ? -1 : 1;
+    const penaltyX = penaltyEvent.x;
+    const keeper = player.position === "GK";
+    const isPenaltyTaker =
+      penaltyEvent.team === team.name &&
+      (penaltyEvent.taker === player.name || penaltyEvent.player === player.name);
+
+    if (keeper) {
+      return {
+        x: isAway ? 98 : 2,
+        y: 34,
+        color,
+        isActive: false,
+      };
+    }
+    if (isPenaltyTaker) {
+      return {
+        x: penaltyShot?.x ?? penaltyEvent.x,
+        y: 34,
+        color,
+        isActive: true,
+      };
+    }
+
+    const outfieldPlayers = allPlayers.filter(
+      (candidate) => candidate.position !== "GK" &&
+        candidate.name !== penaltyEvent.player &&
+        candidate.name !== penaltyEvent.taker,
+    );
+    const playerIndex = outfieldPlayers.findIndex(
+      (candidate) => candidate.id === player.id,
+    );
+    if (playerIndex >= 0 && playerIndex < 5) {
+      const y = 13 + (playerIndex * 42) / 4;
+      const edgeOfBoxX = penaltyX - attackingDirection * 5;
+      return {
+        x: edgeOfBoxX,
+        y,
+        color,
+        isActive: false,
+      };
+    }
+
+    const regularPosition = getFormationPosition(
+      player,
+      isAway,
+      playersAtPosition,
+      ballX,
+      ballY,
+    );
+    return {
+      ...regularPosition,
+      color,
+      isActive: false,
+    };
+  }
+
   if (latestEvent) {
-    if (latestEvent.team === team.name && latestEvent.player === player.name) {
+    if (
+      latestEvent.type !== "substitution" &&
+      latestEvent.type !== "card" &&
+      latestEvent.type !== "injury" &&
+      latestEvent.team === team.name &&
+      latestEvent.player === player.name
+    ) {
       return {
         x: latestEvent.x,
         y: (latestEvent.y / 100) * 66 + 1,
@@ -55,42 +122,70 @@ function getDynamicPlayerCoordinates(
     }
   }
 
-  // 2. Otherwise, shift the team's tactical formation lines dynamically with the ball
-  const baseLine = { GK: 6, DEF: 24, MID: 44, FWD: 64 }[player.position];
-  const basePitchX = isAway ? 100 - baseLine : baseLine;
+  const position = getFormationPosition(
+    player,
+    isAway,
+    playersAtPosition,
+    ballX,
+    ballY,
+  );
+  return { ...position, color, isActive: false };
+}
 
-  // Outfield lines push up/drop back with the ball; GK shifts slightly
-  const ballShiftFactor = player.position === "GK" ? 0.06 : 0.34;
+function getFormationPosition(
+  player: TeamPlayer,
+  isAway: boolean,
+  playersAtPosition: TeamPlayer[],
+  ballX: number,
+  ballY: number,
+) {
+  const roleLine: Record<string, number> = {
+    GK: 6,
+    RB: 24, RCB: 24, CB: 24, LCB: 24, LB: 24,
+    RDM: 36, CDM: 36, LDM: 36,
+    RM: 43, RCM: 43, CM: 43, LCM: 43, LM: 43,
+    CAM: 56,
+    RW: 64, LW: 64, RS: 67, ST: 67, LS: 67,
+  };
+  const baseLine = roleLine[player.role] ??
+    ({ GK: 6, DEF: 24, MID: 44, FWD: 64 }[player.position]);
+  const basePitchX = isAway ? 100 - baseLine : baseLine;
+  const teamBallProgress = isAway ? 100 - ballX : ballX;
+  const ballShiftFactor = player.position === "GK" ? 0.06 : 0.22;
   const shiftedX = Math.max(
     4,
-    Math.min(96, basePitchX + (ballX - 50) * ballShiftFactor),
+    Math.min(96, basePitchX + (teamBallProgress - 50) * ballShiftFactor * (isAway ? -1 : 1)),
   );
 
+  const roleY: Record<string, number> = {
+    RB: 13, RCB: 25, CB: 34, LCB: 43, LB: 55,
+    RDM: 21, CDM: 34, LDM: 47,
+    RM: 13, RCM: 25, CM: 34, LCM: 43, LM: 55,
+    CAM: 34, RW: 18, LW: 50, RS: 27, ST: 34, LS: 41,
+  };
   const index = playersAtPosition.findIndex(
     (candidate) => candidate.id === player.id,
   );
-  const baseY =
-    playersAtPosition.length === 1
+  const baseY = roleY[player.role] ??
+    (playersAtPosition.length === 1
       ? 34
-      : 12 + (index * 44) / (playersAtPosition.length - 1);
+      : 12 + (index * 44) / (playersAtPosition.length - 1));
 
-  // Compress players slightly toward the ball's vertical channel
   const targetBallSvgY = 1 + (ballY / 100) * 66;
-  const lateralShift =
-    player.position === "GK"
-      ? (targetBallSvgY - 34) * 0.12
-      : (targetBallSvgY - 34) * 0.18;
-  const shiftedY = Math.max(6, Math.min(62, baseY + lateralShift));
+  const lateralShift = player.position === "GK"
+    ? (targetBallSvgY - 34) * 0.08
+    : (targetBallSvgY - 34) * 0.3;
+  const orientedBaseY = isAway ? 68 - baseY : baseY;
+  const shiftedY = Math.max(6, Math.min(62, orientedBaseY + lateralShift));
 
-  return {
-    x: shiftedX,
-    y: shiftedY,
-    color,
-    isActive: false,
-  };
+  return { x: shiftedX, y: shiftedY };
 }
 
-function activePlayers(team: ClubTeam, events: MatchEvent[]): TeamPlayer[] {
+function activePlayers(
+  team: ClubTeam,
+  events: MatchEvent[],
+  completedSubstitutions: Set<string>,
+): TeamPlayer[] {
   const active = [...team.roster.starters];
   const substitutions = events
     .filter(
@@ -100,8 +195,9 @@ function activePlayers(team: ClubTeam, events: MatchEvent[]): TeamPlayer[] {
 
   for (const event of substitutions) {
     if (event.type !== "substitution" || !event.details) continue;
+    if (!completedSubstitutions.has(event.id)) continue;
     const detailsParts = event.details.split(" replaces ");
-    const offName = detailsParts[detailsParts.length - 1]?.trim();
+    const offName = event.player_off ?? detailsParts[detailsParts.length - 1]?.trim();
     const incoming = team.roster.substitutes.find(
       (player) => player.name === event.player,
     );
@@ -120,21 +216,85 @@ export function LivePitch({
   awayTeam,
 }: LivePitchProps) {
   const { t } = useTranslation();
+  const [completedSubstitutions, setCompletedSubstitutions] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const substitutionTimers = useRef<Map<string, number>>(new Map());
+  useEffect(() => {
+    for (const event of events) {
+      if (
+        event.type !== "substitution" ||
+        completedSubstitutions.has(event.id) ||
+        substitutionTimers.current.has(event.id)
+      ) continue;
+      const timer = window.setTimeout(() => {
+        substitutionTimers.current.delete(event.id);
+        setCompletedSubstitutions((completed) => new Set(completed).add(event.id));
+      }, 950);
+      substitutionTimers.current.set(event.id, timer);
+    }
+  }, [events, completedSubstitutions]);
+  useEffect(
+    () => () => {
+      for (const timer of substitutionTimers.current.values()) {
+        window.clearTimeout(timer);
+      }
+    },
+    [],
+  );
+
   const visibleEvents = useMemo(() => events.slice(-6), [events]);
-  const markerIdForColor = (color: string) => `arrow-${color.replace("#", "")}`;
-  const markerColors = [
-    ...new Set(visibleEvents.map((event) => colorOf(event.team))),
-  ];
-  const latestEvent = events[events.length - 1];
+  const latestBallEvent = [...events].reverse().find(
+    (event) =>
+      event.type !== "substitution" &&
+      event.type !== "card" &&
+      event.type !== "injury",
+  );
+  const latestMovementEvent = latestBallEvent;
+  const penaltyEvent = [...events].reverse().find(
+    (event): event is SetPieceEvent & { type: "penalty" } =>
+      event.type === "penalty",
+  );
+  const penaltyShot = penaltyEvent && events.find(
+    (event) =>
+      event.type === "shot" &&
+      event.id.startsWith(`${penaltyEvent.id}_shot`),
+  );
+  const latestPenalty = penaltyEvent &&
+    !events.slice(events.indexOf(penaltyEvent) + 1).some(
+      (event) => event.type === "goal" || event.type === "save",
+    )
+    ? penaltyEvent
+    : undefined;
+  const activePenaltyShot = latestPenalty ? penaltyShot : undefined;
+  const pendingSubstitution = [...events].reverse().find(
+    (event) =>
+    event.type === "substitution" &&
+    !completedSubstitutions.has(event.id),
+  );
+  const playerComingOff = pendingSubstitution?.type === "substitution"
+    ? pendingSubstitution.player_off ??
+    pendingSubstitution.details
+      ?.split(" replaces ")
+      .slice(-1)[0]
+      ?.trim()
+    : undefined;
   const ballTo =
-    latestEvent && "end_x" in latestEvent
-      ? { x: latestEvent.end_x, y: latestEvent.end_y }
-      : latestEvent
-        ? { x: latestEvent.x, y: latestEvent.y }
+    latestBallEvent &&
+    "end_x" in latestBallEvent &&
+    typeof latestBallEvent.end_x === "number" &&
+    typeof latestBallEvent.end_y === "number"
+      ? { x: latestBallEvent.end_x, y: latestBallEvent.end_y }
+      : latestBallEvent
+        ? { x: latestBallEvent.x, y: latestBallEvent.y }
         : { x: 50, y: 50 };
 
-  const homePlayers = homeTeam ? activePlayers(homeTeam, events) : [];
-  const awayPlayers = awayTeam ? activePlayers(awayTeam, events) : [];
+  const homePlayers = homeTeam
+    ? activePlayers(homeTeam, events, completedSubstitutions)
+    : [];
+  const awayPlayers = awayTeam
+    ? activePlayers(awayTeam, events, completedSubstitutions)
+    : [];
 
   const sx = (val: number) => {
     const clamped = Math.max(0, Math.min(100, val));
@@ -230,32 +390,14 @@ export function LivePitch({
         className="absolute inset-0 w-full h-full pointer-events-none z-10"
         viewBox="0 0 105 68"
       >
-        <defs>
-          {markerColors.map((color) => (
-            <marker
-              key={color}
-              id={markerIdForColor(color)}
-              viewBox="0 0 10 10"
-              refX="8"
-              refY="5"
-              markerWidth="4"
-              markerHeight="4"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
-            </marker>
-          ))}
-        </defs>
-
         {visibleEvents.map((event, index) => {
           const color = colorOf(event.team);
           const opacity = 0.25 + (0.75 * (index + 1)) / visibleEvents.length;
-          const markerId = `url(#${markerIdForColor(color)})`;
 
           const x = sx(event.x ?? 50);
           const y = sy(event.y ?? 50);
 
-          if ("end_x" in event) {
+          if (event.type === "pass") {
             const endX = sx(event.end_x);
             const endY = sy(event.end_y);
             const isIntercepted = event.outcome === "intercepted";
@@ -269,7 +411,6 @@ export function LivePitch({
                   stroke={color}
                   strokeWidth="0.6"
                   strokeDasharray={isIntercepted ? "1.5, 1.5" : "none"}
-                  markerEnd={markerId}
                 />
                 <circle cx={x} cy={y} r="0.6" fill={color} />
               </g>
@@ -281,6 +422,17 @@ export function LivePitch({
             const isGoal = event.outcome === "goal";
             return (
               <g key={event.id} opacity={opacity}>
+                {typeof event.end_x === "number" &&
+                  typeof event.end_y === "number" && (
+                    <line
+                      x1={x}
+                      y1={y}
+                      x2={sx(event.end_x)}
+                      y2={sy(event.end_y)}
+                      stroke={color}
+                      strokeWidth="0.7"
+                    />
+                  )}
                 <circle
                   cx={x}
                   cy={y}
@@ -352,12 +504,20 @@ export function LivePitch({
               homeTeam,
               false,
               playersAtPosition,
+              homePlayers,
               ballTo.x,
               ballTo.y,
-              latestEvent,
+              latestMovementEvent,
+              latestPenalty,
+              activePenaltyShot,
             );
             const x = sx(position.x);
-            const y = position.y;
+            const isComingOff =
+              player.name === playerComingOff &&
+              pendingSubstitution?.team === homeTeam.name;
+            const y = isComingOff
+              ? (position.y < 34 ? -3 : 71)
+              : position.y;
             return (
               <g
                 key={`home-${player.id}`}
@@ -414,12 +574,20 @@ export function LivePitch({
               awayTeam,
               true,
               playersAtPosition,
+              awayPlayers,
               ballTo.x,
               ballTo.y,
-              latestEvent,
+              latestMovementEvent,
+              latestPenalty,
+              activePenaltyShot,
             );
             const x = sx(position.x);
-            const y = position.y;
+            const isComingOff =
+              player.name === playerComingOff &&
+              pendingSubstitution?.team === awayTeam.name;
+            const y = isComingOff
+              ? (position.y < 34 ? -3 : 71)
+              : position.y;
             return (
               <g
                 key={`away-${player.id}`}

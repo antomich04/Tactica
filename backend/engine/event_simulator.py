@@ -212,6 +212,18 @@ class EventSimulator(EventSource):
                         await self._pause_event.wait()
                     await asyncio.sleep(self.sequence_step_sleep)
                 yield event
+                event_type = getattr(event.type, "value", event.type)
+                event_delay = {
+                    EventType.FOUL: 1.0,
+                    EventType.SUBSTITUTION: 1.2,
+                    EventType.PENALTY: 1.6,
+                }.get(event_type, 0.0)
+                if isinstance(event, ShotEvent) and "_pen_shot" in event.id:
+                    event_delay = 0.7
+                if event_delay:
+                    if self._pause_event is not None:
+                        await self._pause_event.wait()
+                    await asyncio.sleep(event_delay)
 
     def _maybe_make_substitution(self, base_id: str) -> GenericMatchEvent | None:
         """Make each team's scheduled substitutions between 55' and 86'."""
@@ -271,10 +283,11 @@ class EventSimulator(EventSource):
             timestamp=round(self.match_time, 1),
             team=sub_team,
             player=player_on,
-            x=50.0,
-            y=3.5,
+            x=self.x,
+            y=self.y,
             type=EventType.SUBSTITUTION,
             details=f"{player_on} replaces {player_off}",
+            player_off=player_off,
         )
 
     def _generate_next_events(self) -> list[MatchEvent]:
@@ -556,16 +569,17 @@ class EventSimulator(EventSource):
         if progress > 82.0 and 20.0 < self.y < 80.0:
             pen_x = 88.5 if self._attack_dir() > 0 else 11.5
             goal_x = self._goal_x(self.possession)
+            attack_direction = self._attack_dir()
             self.x, self.y = pen_x, 50.0
 
             events.append(SetPieceEvent(
                 id=f"{base_id}_pen",
                 match_id=self.match_id,
-                timestamp=round(self.match_time + 4.0, 1),
+                timestamp=round(self.match_time + 1.0, 1),
                 team=self.possession,
                 player=self.current_player,
                 taker=self.current_player,
-                x=pen_x,
+                x=self._clamp_x(pen_x - (attack_direction * 2.5)),
                 y=50.0,
                 type=EventType.PENALTY,
             ))
@@ -573,10 +587,11 @@ class EventSimulator(EventSource):
             # 72% penalty conversion, 28% dramatic penalty save
             is_pen_goal = random.random() < 0.72
             outcome = ShotOutcome.GOAL if is_pen_goal else ShotOutcome.SAVED
+            penalty_target_y = random.choice([43.0, 57.0]) if is_pen_goal else 50.0
             pen_shot = ShotEvent(
                 id=f"{base_id}_pen_shot",
                 match_id=self.match_id,
-                timestamp=round(self.match_time + 5.0, 1),
+                timestamp=round(self.match_time + 2.8, 1),
                 team=self.possession,
                 player=self.current_player,
                 x=pen_x,
@@ -585,6 +600,12 @@ class EventSimulator(EventSource):
                 speed_kmh=round(random.uniform(92.0, 115.0), 1),
                 distance=11.0,
                 outcome=outcome,
+                end_x=(
+                    goal_x
+                    if is_pen_goal
+                    else self._clamp_x(goal_x - attack_direction * 0.5)
+                ),
+                end_y=penalty_target_y,
             )
             events.append(pen_shot)
 
@@ -592,24 +613,26 @@ class EventSimulator(EventSource):
                 events.append(GoalEvent(
                     id=f"{base_id}_pen_goal",
                     match_id=self.match_id,
-                    timestamp=round(self.match_time + 5.5, 1),
+                    timestamp=round(self.match_time + 3.3, 1),
                     team=self.possession,
                     player=self.current_player,
                     x=goal_x,
-                    y=50.0,
+                    y=penalty_target_y,
                     shot_event_id=pen_shot.id,
                     scorer=self.current_player,
                 ))
                 self._reset_to_midfield()
             else:
+                self.x = pen_shot.end_x if pen_shot.end_x is not None else goal_x
+                self.y = pen_shot.end_y if pen_shot.end_y is not None else 50.0
                 events.append(SaveEvent(
                     id=f"{base_id}_pen_save",
                     match_id=self.match_id,
-                    timestamp=round(self.match_time + 5.5, 1),
+                    timestamp=round(self.match_time + 3.3, 1),
                     team=opposing_team,
                     player=str(self.rosters[opposing_team]["GK"]),
-                    x=goal_x,
-                    y=50.0,
+                    x=self.x,
+                    y=self.y,
                     shot_event_id=pen_shot.id,
                     difficulty=0.92,
                 ))

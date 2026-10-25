@@ -37,6 +37,8 @@ export type ShotEvent = BaseEvent & {
   xg: number;
   outcome: "goal" | "saved" | "blocked" | "off_target" | "post";
   distance?: number | null;
+  end_x?: number | null;
+  end_y?: number | null;
 };
 
 export type SaveEvent = BaseEvent & {
@@ -84,6 +86,7 @@ export type PossessionChangeEvent = BaseEvent & {
 export type GenericMatchEvent = BaseEvent & {
   type: "foul" | "substitution" | "injury";
   details?: string | null;
+  player_off?: string | null;
 };
 
 export type Overlay = {
