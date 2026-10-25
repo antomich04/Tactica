@@ -51,6 +51,7 @@ function PlayerRow({
   events: MatchEvent[];
   teamColor: string;
 }) {
+  const { t } = useTranslation();
   const goals = events.filter(
     (event) =>
       event.type === "goal" &&
@@ -72,7 +73,7 @@ function PlayerRow({
       <span
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 text-xs font-black tabular-nums text-white"
         style={{ backgroundColor: teamColor || "#64748b" }}
-        aria-label={`Squad number ${player.squad_number}`}
+        aria-label={t("squadNumberLabel", { number: player.squad_number ?? "" })}
       >
         {player.squad_number}
       </span>
@@ -86,8 +87,12 @@ function PlayerRow({
         {goals > 0 && (
           <span
             className="flex items-center gap-1 text-white"
-            title={`${goals} goal${goals === 1 ? "" : "s"}`}
-            aria-label={`${goals} goal${goals === 1 ? "" : "s"}`}
+            title={t(goals === 1 ? "goalCountSingular" : "goalCountPlural", {
+              count: goals,
+            })}
+            aria-label={t(goals === 1 ? "goalCountSingular" : "goalCountPlural", {
+              count: goals,
+            })}
           >
             <FootballIcon className="h-4 w-4 drop-shadow-sm" />
             {goals > 1 && <span className="text-xs font-black text-emerald-400">x{goals}</span>}
@@ -99,15 +104,15 @@ function PlayerRow({
             className={`h-4 w-2.5 rounded-[2px] border border-white/60 ${
               event.card_color === "red" ? "bg-red-600" : "bg-yellow-400"
             }`}
-            title={`${event.card_color} card`}
-            aria-label={`${event.card_color} card`}
+            title={t(event.card_color === "red" ? "redCardStatus" : "yellowCardStatus")}
+            aria-label={t(event.card_color === "red" ? "redCardStatus" : "yellowCardStatus")}
           />
         ))}
         {substitutionOff && (
           <span
             className="text-red-500"
-            aria-label="Substituted off"
-            title="Substituted off"
+            aria-label={t("substitutedOff")}
+            title={t("substitutedOff")}
           >
             <ArrowDown className="h-4 w-4" />
           </span>
@@ -115,8 +120,8 @@ function PlayerRow({
         {substitutionOn && (
           <span
             className="text-emerald-400"
-            aria-label="Substituted on"
-            title="Substituted on"
+            aria-label={t("substitutedOn")}
+            title={t("substitutedOn")}
           >
             <ArrowUp className="h-4 w-4" />
           </span>

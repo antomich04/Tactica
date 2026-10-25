@@ -21,7 +21,7 @@ interface AccountPreferencesModalProps {
   onClose: () => void;
 }
 
-function extractError(error: unknown): string {
+function extractError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message;
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail;
@@ -30,9 +30,7 @@ function extractError(error: unknown): string {
       return String(detail[0].msg).replace(/^Value error,\s*/i, "");
     }
   }
-  return error instanceof Error
-    ? error.message
-    : "Could not update preferences. Please try again.";
+  return error instanceof Error ? error.message : fallback;
 }
 
 export function AccountPreferencesModal({
@@ -71,7 +69,7 @@ export function AccountPreferencesModal({
         if (active) setTeams(teamList);
       })
       .catch((loadError: unknown) => {
-        if (active) setTeamsError(extractError(loadError));
+        if (active) setTeamsError(extractError(loadError, t("preferencesUpdateFailure")));
       })
       .finally(() => {
         if (active) setLoadingTeams(false);
@@ -112,9 +110,9 @@ export function AccountPreferencesModal({
       const response = await api.patch("/api/account/preferences", updates);
       patchUser({ preferences: response.data.user?.preferences ?? response.data.preferences }, true);
       if ("favorite_team" in updates) clearTeamsCache();
-      setSuccess("Preferences updated successfully.");
+      setSuccess(t("preferencesUpdated"));
     } catch (saveError: unknown) {
-      setError(extractError(saveError));
+      setError(extractError(saveError, t("preferencesUpdateFailure")));
     } finally {
       setBusy(false);
     }
@@ -143,7 +141,7 @@ export function AccountPreferencesModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label={`Close ${preference} preferences`}
+            aria-label={t("closePreferences", { preference })}
             className="text-slate-400 hover:text-white"
           >
             <X className="h-5 w-5" />

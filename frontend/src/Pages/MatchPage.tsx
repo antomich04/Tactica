@@ -322,7 +322,7 @@ export function MatchPage({ getWsTicket }: Props) {
         await api.post("/api/match/resume");
         setPaused(false);
       } catch {
-        setDetail("Could not resume match.");
+        setDetail(t("couldNotResumeMatch"));
       }
       return;
     }
@@ -332,7 +332,7 @@ export function MatchPage({ getWsTicket }: Props) {
       await api.post("/api/match/pause");
       setPaused(true);
     } catch {
-      setDetail("Could not pause match.");
+      setDetail(t("couldNotPauseMatch"));
     }
   };
 
@@ -343,9 +343,9 @@ export function MatchPage({ getWsTicket }: Props) {
       setMatchStopped(true);
       setStreamActive(false);
       setStatus("idle");
-      setDetail("Match stopped");
+      setDetail(t("matchStopped"));
     } catch {
-      setDetail("Could not stop match.");
+      setDetail(t("couldNotStopMatch"));
     }
   };
 
@@ -373,8 +373,8 @@ export function MatchPage({ getWsTicket }: Props) {
     },
     [dbTeams],
   );
-  const homeColor = colorOf(teams[0] || "Home");
-  const awayColor = colorOf(teams[1] || "Away");
+  const homeColor = colorOf(teams[0] || t("home"));
+  const awayColor = colorOf(teams[1] || t("away"));
 
   const isRunning = streamActive && !paused;
 
@@ -396,6 +396,8 @@ export function MatchPage({ getWsTicket }: Props) {
       <div className="shrink-0">
         <Scoreboard
           teams={teams}
+          homeClub={dbTeams[0]}
+          awayClub={dbTeams[1]}
           events={events}
           matchTime={matchStopped ? 0 : now}
           homeColor={homeColor}
@@ -404,7 +406,7 @@ export function MatchPage({ getWsTicket }: Props) {
           paused={paused}
           finished={Boolean(matchSummary) || now >= 5400 || matchStopped}
           status={paused ? "idle" : status}
-          detail={paused ? "PAUSED" : detail}
+          detail={paused ? t("paused") : detail}
           onToggleMatch={toggleMatch}
           onStopMatch={stopMatch}
           onChangeMatch={() => navigate("/home")}
@@ -422,12 +424,12 @@ export function MatchPage({ getWsTicket }: Props) {
             {recapLoading ? (
               <>
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                Preparing recap
+                {t("preparingRecap")}
               </>
             ) : (
               <>
                 <BookOpenText className="h-4 w-4" />
-                Watch recap
+                {t("watchRecap")}
               </>
             )}
           </button>
@@ -464,7 +466,15 @@ export function MatchPage({ getWsTicket }: Props) {
             <ActiveOverlay active={active} teams={teams} />
           </div>
 
-          <MatchStats events={events} teams={teams} colorOf={colorOf} />
+          <MatchStats
+            events={events}
+            teams={teams}
+            teamShortCodes={[
+              dbTeams[0]?.short_code ?? "",
+              dbTeams[1]?.short_code ?? "",
+            ]}
+            colorOf={colorOf}
+          />
           {dbTeams[0] && dbTeams[1] && (
             <MatchLineups
               homeTeam={dbTeams[0]}

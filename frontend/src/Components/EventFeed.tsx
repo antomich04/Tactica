@@ -61,7 +61,16 @@ export function EventFeed({ events, evidence, colorOf }: Props) {
       case "save":
         return `${actor} — ${t("saveMade")}`;
       case "substitution":
-        return event.details || `${actor} — ${t("substitutionEvent")}`;
+        if (event.details) {
+          const parts = event.details.split(" replaces ");
+          if (parts.length === 2) {
+            return t("substitutionBy", {
+              playerOn: parts[0].trim(),
+              playerOff: parts[1].trim(),
+            });
+          }
+        }
+        return `${actor} — ${t("substitutionEvent")}`;
       case "possession_change":
         return `${actor} — ${t("possessionChange")}`;
       case "pressure":

@@ -45,7 +45,7 @@ export function NavigationBar() {
   return (
     <>
       <nav
-        aria-label="Primary navigation"
+        aria-label={t("primaryNavigation")}
         className="w-full h-20 bg-slate-900 border-b border-slate-700/50 px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 shadow-md"
       >
         {/* Left: Brand */}

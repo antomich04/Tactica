@@ -11,8 +11,8 @@ interface Props {
 
 export function MomentumGraph({ metrics, teams, colorOf, latestEvent }: Props) {
   const { t } = useTranslation();
-  const homeTeam = teams[0] || "Home";
-  const awayTeam = teams[1] || "Away";
+  const homeTeam = teams[0] || t("home");
+  const awayTeam = teams[1] || t("away");
 
   const momentumScore = metrics?.momentum?.score;
 

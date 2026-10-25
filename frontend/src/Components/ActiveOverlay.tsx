@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Overlay } from "../types";
-import { useTranslation } from "../Utils/i18n";
+import { useTranslation, type TranslationKey } from "../Utils/i18n";
 import {
   Radio,
   Activity,
@@ -14,6 +14,21 @@ interface Props {
   active?: Overlay | null;
   teams: string[];
 }
+
+const OVERLAY_TYPE_TRANSLATIONS: Record<string, TranslationKey> = {
+  momentum_shift: "overlayMomentumShift",
+  player_tag: "overlayPlayerTag",
+  shot_speed: "overlayShotSpeed",
+  goal: "goalLegend",
+  card: "cardLegend",
+  milestone: "overlayMilestone",
+  recap_item: "overlayRecapItem",
+  penalty_save: "overlayPenaltySave",
+  yellow_card: "yellowCard",
+  substitution: "substitutionEvent",
+  tactical_control: "overlayTacticalControl",
+  half_time: "halfTime",
+};
 
 export function ActiveOverlay({ active, teams }: Props) {
   const { t } = useTranslation();
@@ -65,8 +80,8 @@ export function ActiveOverlay({ active, teams }: Props) {
     );
   }
 
-  const homeTeam = teams[0] || "Home";
-  const awayTeam = teams[1] || "Away";
+  const homeTeam = teams[0] || t("home");
+  const awayTeam = teams[1] || t("away");
 
   const isRichAi = display.meta?.tier === "rich_agentic";
   const isAnalyst = display.persona === "analyst";
@@ -164,7 +179,9 @@ export function ActiveOverlay({ active, teams }: Props) {
         {/* Main Broadcast Text */}
         <div className="my-1 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <p className="break-words text-white font-black text-xs uppercase tracking-wider leading-tight opacity-75">
-            {display.type.replace("_", " ")}
+            {OVERLAY_TYPE_TRANSLATIONS[display.type]
+              ? t(OVERLAY_TYPE_TRANSLATIONS[display.type])
+              : display.type.replace("_", " ")}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap break-words text-slate-100 font-semibold text-sm sm:text-base leading-snug">
             {display.text}

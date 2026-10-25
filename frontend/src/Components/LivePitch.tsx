@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam, MatchEvent, TeamPlayer } from "../types";
 
 interface LivePitchProps {
@@ -118,6 +119,7 @@ export function LivePitch({
   homeTeam,
   awayTeam,
 }: LivePitchProps) {
+  const { t } = useTranslation();
   const visibleEvents = useMemo(() => events.slice(-6), [events]);
   const markerIdForColor = (color: string) => `arrow-${color.replace("#", "")}`;
   const markerColors = [
@@ -150,7 +152,7 @@ export function LivePitch({
   return (
     <div
       role="img"
-      aria-label="Live pitch showing player positions, the ball, and recent match events"
+      aria-label={t("livePitchLabel")}
       className="w-full max-w-[700px] mx-auto relative bg-emerald-900/40 border-2 border-slate-600 rounded-xl overflow-hidden aspect-[105/68] shadow-2xl"
     >
       {/* Pitch Markings */}
@@ -465,7 +467,7 @@ export function LivePitch({
 
         {/* Smooth Gliding Realistic Football */}
         <g
-          aria-label="Ball"
+          aria-label={t("ball")}
           style={{
             transform: `translate(${ballSvgX}px, ${ballSvgY}px)`,
             transition: "transform 0.55s cubic-bezier(0.22, 1, 0.36, 1)",

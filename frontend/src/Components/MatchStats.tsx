@@ -5,6 +5,7 @@ import type { MatchEvent } from "../types";
 interface Props {
   events: MatchEvent[];
   teams: string[];
+  teamShortCodes: [string, string];
   colorOf: (team: string) => string;
 }
 
@@ -30,10 +31,10 @@ const emptyStats = (): TeamStats => ({
   tacklesWon: 0,
 });
 
-export function MatchStats({ events, teams, colorOf }: Props) {
+export function MatchStats({ events, teams, teamShortCodes, colorOf }: Props) {
   const { t } = useTranslation();
-  const homeTeam = teams[0] || "Home";
-  const awayTeam = teams[1] || "Away";
+  const homeTeam = teams[0] || t("home");
+  const awayTeam = teams[1] || t("away");
   const homeColor = colorOf(homeTeam);
   const awayColor = colorOf(awayTeam);
 
@@ -251,9 +252,15 @@ export function MatchStats({ events, teams, colorOf }: Props) {
           <span className="text-sm font-extrabold uppercase tracking-widest text-slate-300">
             {t("topRatedPlayers")}
           </span>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-2">
             {topPlayers.map((p) => {
               const playerColor = colorOf(p.team);
+              const teamCode =
+                p.team === homeTeam
+                  ? teamShortCodes[0]
+                  : p.team === awayTeam
+                    ? teamShortCodes[1]
+                    : "";
               const badgeColor =
                 p.rating >= 7.5
                   ? "bg-emerald-500 text-slate-950"
@@ -264,23 +271,22 @@ export function MatchStats({ events, teams, colorOf }: Props) {
               return (
                 <div
                   key={p.name}
-                  className="flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5"
+                  className="flex min-w-0 items-center gap-3 bg-slate-950/60 border border-slate-800 rounded-xl px-3.5 py-2.5"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-sm sm:text-base font-black tabular-nums shrink-0 ${badgeColor}`}
-                    >
-                      {p.rating.toFixed(1)}
-                    </span>
-                    <span className="text-base font-bold text-slate-100 truncate">
-                      {p.name}
-                    </span>
-                  </div>
                   <span
-                    className="text-xs sm:text-sm font-bold shrink-0 ml-2"
-                    style={{ color: playerColor }}
+                    className={`px-2 py-0.5 rounded-md text-sm sm:text-base font-black tabular-nums shrink-0 ${badgeColor}`}
                   >
-                    {p.team}
+                    {p.rating.toFixed(1)}
+                  </span>
+                  <span className="min-w-0 flex-1 text-base font-bold text-slate-100">
+                    {p.name}
+                  </span>
+                  <span
+                    className="text-xs sm:text-sm font-bold shrink-0"
+                    style={{ color: playerColor }}
+                    title={p.team}
+                  >
+                    {teamCode || p.team}
                   </span>
                 </div>
               );

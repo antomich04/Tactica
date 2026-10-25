@@ -1,9 +1,13 @@
 import { MatchEvent, Status } from "../types";
 import { ArrowLeftRight, Shield, Play, Square } from "lucide-react";
 import { useTranslation } from "../Utils/i18n";
+import { TeamCrest } from "./TeamCrest";
+import type { ClubTeam } from "../types";
 
 interface Props {
   teams: string[];
+  homeClub?: ClubTeam | null;
+  awayClub?: ClubTeam | null;
   events: MatchEvent[];
   matchTime: number;
   homeColor: string;
@@ -20,6 +24,8 @@ interface Props {
 
 export function Scoreboard({
   teams,
+  homeClub,
+  awayClub,
   events,
   matchTime,
   homeColor,
@@ -34,8 +40,8 @@ export function Scoreboard({
   onChangeMatch,
 }: Props) {
   const { t } = useTranslation();
-  const homeTeam = teams[0] || "Home";
-  const awayTeam = teams[1] || "Away";
+  const homeTeam = teams[0] || t("home");
+  const awayTeam = teams[1] || t("away");
 
   const homeGoals = events.filter(
     (e) => e.type === "goal" && e.team === homeTeam,
@@ -71,7 +77,7 @@ export function Scoreboard({
         {homeRedCards > 0 && (
           <div
             className="flex gap-1 shrink-0"
-            title={`${homeRedCards} Red Card(s)`}
+            title={t("redCardCountTitle", { count: homeRedCards })}
           >
             {Array.from({ length: homeRedCards }).map((_, i) => (
               <span
@@ -87,10 +93,18 @@ export function Scoreboard({
         >
           {homeTeam}
         </span>
-        <Shield
-          className="w-6 h-6 md:w-8 md:h-8 shrink-0"
-          style={{ color: homeColor }}
-        />
+        {homeClub ? (
+          <TeamCrest
+            team={homeClub}
+            fallbackColor={homeColor}
+            sizeClassName="h-6 w-6 shrink-0 md:h-8 md:w-8"
+          />
+        ) : (
+          <Shield
+            className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+            style={{ color: homeColor }}
+          />
+        )}
         <span className="text-2xl md:text-3xl font-black text-white md:ml-2 tabular-nums shrink-0">
           {homeGoals}
         </span>
@@ -116,7 +130,13 @@ export function Scoreboard({
                 ? t("fullTime")
                 : status === "live"
                   ? getPeriodLabel()
-                  : status}
+                  : status === "connecting"
+                    ? t("statusConnecting")
+                    : status === "reconnecting"
+                      ? t("statusReconnecting")
+                      : status === "error"
+                        ? t("statusError")
+                        : t("statusIdle")}
           </span>
         </div>
 
@@ -176,10 +196,18 @@ export function Scoreboard({
         <span className="text-2xl md:text-3xl font-black text-white md:mr-2 tabular-nums shrink-0">
           {awayGoals}
         </span>
-        <Shield
-          className="w-6 h-6 md:w-8 md:h-8 shrink-0"
-          style={{ color: awayColor }}
-        />
+        {awayClub ? (
+          <TeamCrest
+            team={awayClub}
+            fallbackColor={awayColor}
+            sizeClassName="h-6 w-6 shrink-0 md:h-8 md:w-8"
+          />
+        ) : (
+          <Shield
+            className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+            style={{ color: awayColor }}
+          />
+        )}
         <span
           title={awayTeam}
           className="min-w-0 flex-1 text-lg md:text-xl font-black text-white uppercase tracking-wide break-words"
@@ -189,7 +217,7 @@ export function Scoreboard({
         {awayRedCards > 0 && (
           <div
             className="flex gap-1 shrink-0"
-            title={`${awayRedCards} Red Card(s)`}
+            title={t("redCardCountTitle", { count: awayRedCards })}
           >
             {Array.from({ length: awayRedCards }).map((_, i) => (
               <span

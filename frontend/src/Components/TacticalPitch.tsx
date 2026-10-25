@@ -1,4 +1,5 @@
 import type { PlayerRole, TeamPlayer } from "../types";
+import { useTranslation } from "../Utils/i18n";
 
 export type { PlayerRole };
 
@@ -50,6 +51,7 @@ export function TacticalPitch({
   customColor,
   players,
 }: TacticalPitchProps) {
+  const { t } = useTranslation();
   const numberTextColor = isLightHex(customColor)
     ? "text-slate-950"
     : "text-white";
@@ -95,8 +97,15 @@ export function TacticalPitch({
           <div
             key={`${player.name}-${player.role}`}
             role="img"
-            aria-label={`#${player.squad_number ?? ""} ${player.name}, ${player.role}`}
-            title={`${player.name}, ${player.role}`}
+            aria-label={t("playerPositionLabel", {
+              number: player.squad_number ?? "",
+              player: player.name,
+              role: player.role,
+            })}
+            title={t("playerPositionTitle", {
+              player: player.name,
+              role: player.role,
+            })}
             className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center select-none"
             style={{ top: position.top, left: position.left }}
           >
