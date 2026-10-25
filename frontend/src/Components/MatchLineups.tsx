@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Crosshair, X } from "lucide-react";
 import { useTranslation } from "../Utils/i18n";
 import type { ClubTeam, MatchEvent, TeamPlayer } from "../types";
 
@@ -6,6 +6,8 @@ interface MatchLineupsProps {
   homeTeam: ClubTeam;
   awayTeam: ClubTeam;
   events: MatchEvent[];
+  lockedPlayer: TeamPlayer | null;
+  onToggleLockPlayer: (player: TeamPlayer) => void;
 }
 
 function FootballIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -17,7 +19,14 @@ function FootballIcon({ className = "h-4 w-4" }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <circle cx="12" cy="12" r="10" fill="#ffffff" stroke="#0f172a" strokeWidth="1.6" />
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        fill="#ffffff"
+        stroke="#0f172a"
+        strokeWidth="1.6"
+      />
       <path
         d="M12 6.5 L15.5 9 L14 13 H10 L8.5 9 Z"
         fill="#0f172a"
@@ -46,10 +55,14 @@ function PlayerRow({
   player,
   events,
   teamColor,
+  isLocked,
+  onToggleLock,
 }: {
   player: TeamPlayer;
   events: MatchEvent[];
   teamColor: string;
+  isLocked: boolean;
+  onToggleLock: (player: TeamPlayer) => void;
 }) {
   const { t } = useTranslation();
   const goals = events.filter(
@@ -69,20 +82,58 @@ function PlayerRow({
   );
 
   return (
-    <div className="flex min-h-10 items-center gap-2.5 border-b border-slate-800/80 px-2.5 py-2 last:border-b-0">
+    <div
+      onClick={() => onToggleLock(player)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggleLock(player);
+        }
+      }}
+      aria-pressed={isLocked}
+      title={isLocked ? t("unlockPlayer") : t("lockPlayer")}
+      className={`group flex min-h-9 sm:min-h-11 items-center gap-1.5 sm:gap-2.5 border-b px-1.5 sm:px-2.5 py-1.5 sm:py-2 last:border-b-0 transition-all cursor-pointer select-none rounded-lg ${
+        isLocked
+          ? "bg-amber-500/15 border-amber-500/50 shadow-[inset_0_0_12px_rgba(245,158,11,0.18)]"
+          : "border-slate-800/80 hover:bg-slate-800/60"
+      }`}
+    >
       <span
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 text-xs font-black tabular-nums text-white"
+        className={`flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full border text-[10px] sm:text-xs font-black tabular-nums text-white transition-transform ${
+          isLocked
+            ? "border-amber-400 ring-2 ring-amber-400/40 scale-105"
+            : "border-white/70"
+        }`}
         style={{ backgroundColor: teamColor || "#64748b" }}
         aria-label={t("squadNumberLabel", { number: player.squad_number ?? "" })}
       >
         {player.squad_number}
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm sm:text-base font-semibold text-slate-200">
-        {player.name}
-      </span>
-      <span className="shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
+
+      <div className="min-w-0 flex-1 flex items-center gap-2">
+        <span
+          className={`truncate text-[11px] sm:text-base font-semibold transition-colors ${
+            isLocked
+              ? "text-amber-300 font-bold"
+              : "text-slate-200 group-hover:text-white"
+          }`}
+        >
+          {player.name}
+        </span>
+        {isLocked && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-300 shrink-0">
+            <Crosshair className="h-3 w-3" />
+            {t("lockedBadge")}
+          </span>
+        )}
+      </div>
+
+      <span className="shrink-0 text-[9px] sm:text-xs font-bold uppercase tracking-wide text-slate-400">
         {player.role}
       </span>
+
       <div className="flex min-w-6 shrink-0 items-center justify-end gap-1.5">
         {goals > 0 && (
           <span
@@ -95,7 +146,11 @@ function PlayerRow({
             })}
           >
             <FootballIcon className="h-4 w-4 drop-shadow-sm" />
-            {goals > 1 && <span className="text-xs font-black text-emerald-400">x{goals}</span>}
+            {goals > 1 && (
+              <span className="text-xs font-black text-emerald-400">
+                x{goals}
+              </span>
+            )}
           </span>
         )}
         {cards.map((event) => (
@@ -104,8 +159,12 @@ function PlayerRow({
             className={`h-4 w-2.5 rounded-[2px] border border-white/60 ${
               event.card_color === "red" ? "bg-red-600" : "bg-yellow-400"
             }`}
-            title={t(event.card_color === "red" ? "redCardStatus" : "yellowCardStatus")}
-            aria-label={t(event.card_color === "red" ? "redCardStatus" : "yellowCardStatus")}
+            title={t(
+              event.card_color === "red" ? "redCardStatus" : "yellowCardStatus",
+            )}
+            aria-label={t(
+              event.card_color === "red" ? "redCardStatus" : "yellowCardStatus",
+            )}
           />
         ))}
         {substitutionOff && (
@@ -126,6 +185,28 @@ function PlayerRow({
             <ArrowUp className="h-4 w-4" />
           </span>
         )}
+
+        {/* Lock / Unlock Action Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleLock(player);
+          }}
+          aria-label={isLocked ? t("unlockPlayer") : t("lockPlayer")}
+          title={isLocked ? t("unlockPlayer") : t("lockPlayer")}
+          className={`ml-0.5 sm:ml-1 flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-md border transition-all cursor-pointer ${
+            isLocked
+              ? "border-amber-400/60 bg-amber-500/20 text-amber-300 hover:bg-red-500/20 hover:border-red-400/60 hover:text-red-300 opacity-100"
+              : "border-slate-700 bg-slate-900/80 text-slate-400 opacity-70 sm:opacity-0 group-hover:opacity-100 hover:border-amber-400/60 hover:text-amber-300"
+          }`}
+        >
+          {isLocked ? (
+            <X className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          ) : (
+            <Crosshair className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          )}
+        </button>
       </div>
     </div>
   );
@@ -135,10 +216,14 @@ function TeamLineup({
   team,
   events,
   isAway,
+  lockedPlayer,
+  onToggleLockPlayer,
 }: {
   team: ClubTeam;
   events: MatchEvent[];
   isAway: boolean;
+  lockedPlayer: TeamPlayer | null;
+  onToggleLockPlayer: (player: TeamPlayer) => void;
 }) {
   const { t } = useTranslation();
   const color = isAway ? team.secondary_color : team.primary_color;
@@ -147,18 +232,18 @@ function TeamLineup({
   return (
     <section className="min-w-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60">
       <header
-        className="flex items-center justify-between gap-3 border-b border-slate-700 px-3.5 py-3"
+        className="flex items-center justify-between gap-2 sm:gap-3 border-b border-slate-700 px-2 sm:px-3.5 py-2 sm:py-3"
         style={{ borderTop: `3px solid ${color || "#64748b"}` }}
       >
-        <h3 className="truncate text-sm sm:text-base font-black uppercase tracking-wide text-white">
+        <h3 className="truncate text-[11px] sm:text-base font-black uppercase tracking-wide text-white">
           {team.name}
         </h3>
-        <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-slate-400">
+        <span className="shrink-0 text-[9px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">
           {team.formation}
         </span>
       </header>
-      <div className="max-h-[480px] overflow-y-auto p-2">
-        <h4 className="px-2 pb-1 pt-1 text-xs font-black uppercase tracking-widest text-slate-400">
+      <div className="max-h-[480px] overflow-y-auto p-2 space-y-0.5">
+        <h4 className="px-2 pb-1 pt-1 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
           {t("startingXI")}
         </h4>
         {team.roster.starters.map((player) => (
@@ -167,9 +252,11 @@ function TeamLineup({
             player={player}
             events={teamEvents}
             teamColor={color}
+            isLocked={lockedPlayer?.id === player.id}
+            onToggleLock={onToggleLockPlayer}
           />
         ))}
-        <h4 className="px-2 pb-1 pt-4 text-xs font-black uppercase tracking-widest text-slate-400">
+        <h4 className="px-2 pb-1 pt-4 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
           {t("substitutes")}
         </h4>
         {team.roster.substitutes.map((player) => (
@@ -178,6 +265,8 @@ function TeamLineup({
             player={player}
             events={teamEvents}
             teamColor={color}
+            isLocked={lockedPlayer?.id === player.id}
+            onToggleLock={onToggleLockPlayer}
           />
         ))}
       </div>
@@ -189,21 +278,34 @@ export function MatchLineups({
   homeTeam,
   awayTeam,
   events,
+  lockedPlayer,
+  onToggleLockPlayer,
 }: MatchLineupsProps) {
   const { t } = useTranslation();
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="mx-2 my-4 flex flex-col gap-3 sm:mx-4 sm:my-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-xl font-bold tracking-wide text-white sm:text-2xl">
+          <h2 className="text-base font-bold tracking-wide text-white sm:text-2xl">
             {t("squads")}
           </h2>
           <p className="mt-1 text-xs sm:text-sm text-slate-400">
-            {t("squadsSub")}
+            {t("squadsSub")} {t("clickPlayerToLock")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-3.5 text-xs font-semibold text-slate-300">
+        <div className="flex flex-wrap items-center gap-3.5 text-xs font-semibold text-slate-300">
+          {lockedPlayer && (
+            <button
+              type="button"
+              onClick={() => onToggleLockPlayer(lockedPlayer)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 border border-amber-400/50 px-3 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/30 transition cursor-pointer"
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+              <span>{lockedPlayer.name}</span>
+              <X className="h-3.5 w-3.5 ml-0.5 text-amber-200 hover:text-white" />
+            </button>
+          )}
           <span className="flex items-center gap-1.5">
             <FootballIcon className="h-4 w-4" /> {t("goalLegend")}
           </span>
@@ -219,9 +321,21 @@ export function MatchLineups({
           </span>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <TeamLineup team={homeTeam} events={events} isAway={false} />
-        <TeamLineup team={awayTeam} events={events} isAway />
+      <div className="grid grid-cols-2 gap-3">
+        <TeamLineup
+          team={homeTeam}
+          events={events}
+          isAway={false}
+          lockedPlayer={lockedPlayer}
+          onToggleLockPlayer={onToggleLockPlayer}
+        />
+        <TeamLineup
+          team={awayTeam}
+          events={events}
+          isAway
+          lockedPlayer={lockedPlayer}
+          onToggleLockPlayer={onToggleLockPlayer}
+        />
       </div>
     </section>
   );

@@ -80,18 +80,20 @@ export function TacticalPitch({
   };
 
   return (
-    <div className="relative w-full max-w-[540px] mx-auto aspect-[4/5] bg-emerald-900/40 border-2 border-slate-600/50 rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
+    <div className="relative w-full max-w-[540px] mx-auto aspect-[3/4] sm:aspect-[4/5] bg-emerald-900/40 border sm:border-2 border-slate-600/50 rounded-lg sm:rounded-xl overflow-hidden flex-shrink-0 shadow-inner">
       {/* Pitch Lines */}
-      <div className="absolute top-1/2 left-0 w-full border-t-2 border-slate-500/30" />
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 border-2 border-slate-500/30 rounded-full" />
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-slate-500/50 rounded-full" />
-      <div className="absolute bottom-0 left-1/4 w-1/2 h-[18%] border-2 border-slate-500/30 border-b-0" />
-      <div className="absolute bottom-0 left-[37.5%] w-1/4 h-[6%] border-2 border-slate-500/30 border-b-0" />
-      <div className="absolute top-0 left-1/4 w-1/2 h-[18%] border-2 border-slate-500/30 border-t-0" />
-      <div className="absolute top-0 left-[37.5%] w-1/4 h-[6%] border-2 border-slate-500/30 border-t-0" />
+      <div className="absolute top-1/2 left-0 w-full border-t sm:border-t-2 border-slate-500/30" />
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-12 sm:w-24 sm:h-24 border sm:border-2 border-slate-500/30 rounded-full" />
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-1 sm:w-1.5 sm:h-1.5 bg-slate-500/50 rounded-full" />
+      <div className="absolute bottom-0 left-1/4 w-1/2 h-[18%] border sm:border-2 border-slate-500/30 border-b-0" />
+      <div className="absolute bottom-0 left-[37.5%] w-1/4 h-[6%] border sm:border-2 border-slate-500/30 border-b-0" />
+      <div className="absolute top-0 left-1/4 w-1/2 h-[18%] border sm:border-2 border-slate-500/30 border-t-0" />
+      <div className="absolute top-0 left-[37.5%] w-1/4 h-[6%] border sm:border-2 border-slate-500/30 border-t-0" />
 
       {players.map((player) => {
         const position = getCoordinates(player.role);
+        // Show last name on tiny mobile screens so it doesn't clip, full name on sm+
+        const shortName = player.name.split(" ").slice(-1)[0];
 
         return (
           <div
@@ -111,12 +113,12 @@ export function TacticalPitch({
           >
             {/* Player Circle with Shirt Number Inside */}
             <div
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center font-black text-xs sm:text-sm tabular-nums ${numberTextColor}`}
+              className={`w-5 h-5 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full border sm:border-2 border-white shadow-md flex items-center justify-center font-black text-[9px] sm:text-xs md:text-sm tabular-nums ${numberTextColor}`}
               style={
                 customColor
                   ? {
                       backgroundColor: customColor,
-                      boxShadow: `0 0 12px ${customColor}66`,
+                      boxShadow: `0 0 10px ${customColor}66`,
                     }
                   : undefined
               }
@@ -125,11 +127,14 @@ export function TacticalPitch({
             </div>
 
             {/* Vertically Stacked Player Name & Position */}
-            <div className="mt-1.5 px-1.5 py-1 rounded-md bg-slate-950/90 border border-slate-700/80 shadow-md flex flex-col items-center text-center leading-tight">
-              <span className="font-bold text-slate-100 text-[10px] sm:text-xs max-w-[65px] sm:max-w-[90px] truncate">
+            <div className="mt-0.5 sm:mt-1 px-1 py-0.5 sm:px-1.5 sm:py-1 rounded bg-slate-950/90 border border-slate-700/80 shadow-sm flex flex-col items-center text-center leading-none">
+              <span className="sm:hidden font-bold text-slate-100 text-[7px] max-w-[42px] truncate">
+                {shortName}
+              </span>
+              <span className="hidden sm:block font-bold text-slate-100 text-[10px] md:text-xs max-w-[75px] md:max-w-[95px] truncate">
                 {player.name}
               </span>
-              <span className="text-slate-400 font-extrabold text-[8px] sm:text-[9px] uppercase tracking-widest mt-0.5">
+              <span className="text-slate-400 font-extrabold text-[6px] sm:text-[8px] md:text-[9px] uppercase tracking-wider mt-0.5">
                 {player.role}
               </span>
             </div>

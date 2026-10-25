@@ -71,7 +71,7 @@ export function Scoreboard({
   };
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 shadow-lg grid grid-cols-2 gap-y-4 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
+    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 shadow-lg grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-y-4 md:flex md:flex-row md:justify-between md:gap-0">
       {/* Home Team */}
       <div className="flex items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end order-1 min-w-0">
         {homeRedCards > 0 && (
@@ -110,8 +110,15 @@ export function Scoreboard({
         </span>
       </div>
 
+      <span
+        aria-hidden="true"
+        className="col-start-2 row-start-1 text-lg font-bold text-slate-500 md:hidden"
+      >
+        -
+      </span>
+
       {/* Timer and Controls */}
-      <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-4 md:pt-0 shrink-0 md:px-8 md:min-w-[240px]">
+      <div className="col-span-3 col-start-1 row-start-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-4 md:pt-0 shrink-0 md:px-8 md:min-w-[240px]">
         <div
           className="flex items-center gap-2 mb-1.5"
           title={detail || undefined}
@@ -192,7 +199,7 @@ export function Scoreboard({
       </div>
 
       {/* Away Team */}
-      <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:justify-start order-2 md:order-3 min-w-0">
+      <div className="col-start-3 row-start-1 flex items-center gap-2 md:gap-3 flex-1 justify-end md:justify-start order-2 md:order-3 min-w-0">
         <span className="text-2xl md:text-3xl font-black text-white md:mr-2 tabular-nums shrink-0">
           {awayGoals}
         </span>
