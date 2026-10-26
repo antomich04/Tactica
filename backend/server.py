@@ -11,6 +11,7 @@ from routes.events_stream import router as events_router
 from routes.match_control import router as match_control_router
 from routes.auth_router import router as auth_router
 from routes.account_router import router as account_router
+from routes.teams_router import router as teams_router
 
 app = FastAPI()
 
@@ -31,6 +32,7 @@ app.include_router(events_router)
 app.include_router(match_control_router)
 app.include_router(auth_router)
 app.include_router(account_router)
+app.include_router(teams_router)
 
 @app.get("/health")
 @limiter.limit("5/minute")

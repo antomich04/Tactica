@@ -1,22 +1,61 @@
 import { MatchEvent, Status } from "../types";
-import { Shield, Play, Square } from "lucide-react";
+import { ArrowLeftRight, Shield, Play, Square } from "lucide-react";
+import { useTranslation } from "../Utils/i18n";
+import { TeamCrest } from "./TeamCrest";
+import type { ClubTeam } from "../types";
 
 interface Props {
   teams: string[];
+  homeClub?: ClubTeam | null;
+  awayClub?: ClubTeam | null;
   events: MatchEvent[];
   matchTime: number;
+  homeColor: string;
+  awayColor: string;
   running: boolean;
+  paused: boolean;
+  finished: boolean;
   status: Status;
   detail: string;
   onToggleMatch: () => void;
+  onStopMatch: () => void;
+  onChangeMatch: () => void;
 }
 
-export function Scoreboard({ teams, events, matchTime, running, status, detail, onToggleMatch }: Props) {
-  const homeTeam = teams[0] || "HOME";
-  const awayTeam = teams[1] || "AWAY";
+export function Scoreboard({
+  teams,
+  homeClub,
+  awayClub,
+  events,
+  matchTime,
+  homeColor,
+  awayColor,
+  running,
+  paused,
+  finished,
+  status,
+  detail,
+  onToggleMatch,
+  onStopMatch,
+  onChangeMatch,
+}: Props) {
+  const { t } = useTranslation();
+  const homeTeam = teams[0] || t("home");
+  const awayTeam = teams[1] || t("away");
 
-  const homeGoals = events.filter(e => e.type === "goal" && e.team === homeTeam).length;
-  const awayGoals = events.filter(e => e.type === "goal" && e.team === awayTeam).length;
+  const homeGoals = events.filter(
+    (e) => e.type === "goal" && e.team === homeTeam,
+  ).length;
+  const awayGoals = events.filter(
+    (e) => e.type === "goal" && e.team === awayTeam,
+  ).length;
+
+  const homeRedCards = events.filter(
+    (e) => e.type === "card" && e.card_color === "red" && e.team === homeTeam,
+  ).length;
+  const awayRedCards = events.filter(
+    (e) => e.type === "card" && e.card_color === "red" && e.team === awayTeam,
+  ).length;
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -24,59 +63,178 @@ export function Scoreboard({ teams, events, matchTime, running, status, detail, 
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const getPeriodLabel = () => {
+    if (matchTime === 0 && !running) return t("preMatch");
+    if (matchTime >= 5400) return t("fullTime");
+    if (matchTime >= 2700) return t("secondHalf");
+    return t("firstHalf");
+  };
+
   return (
-    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 shadow-lg grid grid-cols-2 gap-y-3 md:flex md:flex-row md:items-center md:justify-between md:gap-0">
-      
-      {/* Home Team (Mobile: Top Left | Desktop: Left Side) */}
+    <div className="w-full bg-slate-900 border border-slate-600 rounded-xl p-4 shadow-lg grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-y-4 md:flex md:flex-row md:justify-between md:gap-0">
+      {/* Home Team */}
       <div className="flex items-center gap-2 md:gap-3 flex-1 justify-start md:justify-end order-1 min-w-0">
-        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
+        {homeRedCards > 0 && (
+          <div
+            className="flex gap-1 shrink-0"
+            title={t("redCardCountTitle", { count: homeRedCards })}
+          >
+            {Array.from({ length: homeRedCards }).map((_, i) => (
+              <span
+                key={i}
+                className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs"
+              />
+            ))}
+          </div>
+        )}
+        <span
+          title={homeTeam}
+          className="min-w-0 flex-1 text-right text-lg md:text-xl font-black text-white uppercase tracking-wide break-words"
+        >
           {homeTeam}
         </span>
-        <Shield className="w-6 h-6 md:w-8 md:h-8 text-red-500 shrink-0" />
+        {homeClub ? (
+          <TeamCrest
+            team={homeClub}
+            fallbackColor={homeColor}
+            sizeClassName="h-6 w-6 shrink-0 md:h-8 md:w-8"
+          />
+        ) : (
+          <Shield
+            className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+            style={{ color: homeColor }}
+          />
+        )}
         <span className="text-2xl md:text-3xl font-black text-white md:ml-2 tabular-nums shrink-0">
           {homeGoals}
         </span>
       </div>
 
-      {/* Timer and Controls (Mobile: Bottom Full Width | Desktop: Center) */}
-      <div className="col-span-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-3 md:pt-0 shrink-0 md:px-8 md:min-w-[180px]">
-        <div className="flex items-center gap-1.5 mb-1" title={detail || undefined}>
-          <div className={`w-1.5 h-1.5 rounded-full ${status === 'live' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-            {status === 'live' ? 'Live' : status}
+      <span
+        aria-hidden="true"
+        className="col-start-2 row-start-1 text-lg font-bold text-slate-500 md:hidden"
+      >
+        -
+      </span>
+
+      {/* Timer and Controls */}
+      <div className="col-span-3 col-start-1 row-start-2 flex flex-col items-center justify-center order-3 md:order-2 border-t border-slate-800 md:border-none pt-4 md:pt-0 shrink-0 md:px-8 md:min-w-[240px]">
+        <div
+          className="flex items-center gap-2 mb-1.5"
+          title={detail || undefined}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${
+              status === "live" && !finished
+                ? "bg-emerald-500 animate-pulse"
+                : "bg-slate-500"
+            }`}
+          />
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            {paused
+              ? t("paused")
+              : finished
+                ? t("fullTime")
+                : status === "live"
+                  ? getPeriodLabel()
+                  : status === "connecting"
+                    ? t("statusConnecting")
+                    : status === "reconnecting"
+                      ? t("statusReconnecting")
+                      : status === "error"
+                        ? t("statusError")
+                        : t("statusIdle")}
           </span>
         </div>
-        
-        <div className="bg-slate-950 border border-slate-700 px-4 py-1 rounded-lg mb-1.5 shadow-inner">
-          <span className="text-xl font-mono font-black text-emerald-400 tabular-nums tracking-wider">
+
+        <div className="bg-slate-950 border border-slate-700 px-5 py-1.5 rounded-lg mb-2 shadow-inner">
+          <span className="text-2xl font-mono font-black text-emerald-400 tabular-nums tracking-wider">
             {formatTime(matchTime)}
           </span>
         </div>
 
-        <button 
-          onClick={onToggleMatch}
-          className={`flex items-center gap-1.5 px-4 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors ${
-            running 
-              ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-700" 
-              : "bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
-          }`}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onToggleMatch}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md active:scale-95 ${
+              running && !finished
+                ? "bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-600"
+                : "bg-emerald-600 text-white hover:bg-emerald-500 border border-emerald-500"
+            }`}
+          >
+            {running && !finished ? (
+              <Square className="w-4 h-4 fill-current" />
+            ) : (
+              <Play className="w-4 h-4 fill-current" />
+            )}
+            {finished
+              ? t("resetMatch")
+              : running
+                ? t("pauseMatch")
+                : matchTime > 0
+                  ? t("resumeMatch")
+                  : t("startMatch")}
+          </button>
+          {paused && (
+            <button
+              type="button"
+              onClick={onStopMatch}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all cursor-pointer bg-slate-800 text-red-400 hover:bg-slate-700 border border-slate-600 shadow-md active:scale-95"
+            >
+              <Square className="w-4 h-4 fill-current" />
+              {t("stopMatch")}
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onChangeMatch}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-400 transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-300 cursor-pointer"
         >
-          {running ? <Square className="w-2.5 h-2.5 fill-current" /> : <Play className="w-2.5 h-2.5 fill-current" />}
-          {running ? "Stop Match" : "Start Match"}
+          <ArrowLeftRight className="h-3.5 w-3.5" />
+          {t("changeMatch")}
         </button>
       </div>
 
-      {/* Away Team (Mobile: Top Right | Desktop: Right Side) */}
-      <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:justify-start order-2 md:order-3 min-w-0">
+      {/* Away Team */}
+      <div className="col-start-3 row-start-1 flex items-center gap-2 md:gap-3 flex-1 justify-end md:justify-start order-2 md:order-3 min-w-0">
         <span className="text-2xl md:text-3xl font-black text-white md:mr-2 tabular-nums shrink-0">
           {awayGoals}
         </span>
-        <Shield className="w-6 h-6 md:w-8 md:h-8 text-blue-500 shrink-0" />
-        <span className="text-lg md:text-xl font-black text-white uppercase tracking-wide truncate md:max-w-[150px]">
+        {awayClub ? (
+          <TeamCrest
+            team={awayClub}
+            fallbackColor={awayColor}
+            sizeClassName="h-6 w-6 shrink-0 md:h-8 md:w-8"
+          />
+        ) : (
+          <Shield
+            className="w-6 h-6 md:w-8 md:h-8 shrink-0"
+            style={{ color: awayColor }}
+          />
+        )}
+        <span
+          title={awayTeam}
+          className="min-w-0 flex-1 text-lg md:text-xl font-black text-white uppercase tracking-wide break-words"
+        >
           {awayTeam}
         </span>
+        {awayRedCards > 0 && (
+          <div
+            className="flex gap-1 shrink-0"
+            title={t("redCardCountTitle", { count: awayRedCards })}
+          >
+            {Array.from({ length: awayRedCards }).map((_, i) => (
+              <span
+                key={i}
+                className="w-2.5 h-3.5 bg-red-600 rounded-[2px] border border-white/40 shadow-xs"
+              />
+            ))}
+          </div>
+        )}
       </div>
-
     </div>
   );
 }

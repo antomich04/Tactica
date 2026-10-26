@@ -1,28 +1,30 @@
 import { createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 import { useAuth } from "./Providers/AuthProvider";
 import { LoginPage } from "./Pages/LoginPage";
+import { ForgotPasswordPage } from "./Pages/ForgotPasswordPage";
 import { SignUpPage } from "./Pages/SignUpPage";
 import { MatchPage } from "./Pages/MatchPage";
 import { HomePage } from "./Pages/HomePage";
 import { SettingsPage } from "./Pages/SettingsPage";
+import { NotFoundPage } from "./Pages/NotFoundPage";
 import { NavigationBar } from "./Components/NavigationBar";
 
 function AuthGuard() {
   const { status, user } = useAuth();
-  
+
   if (status === "loading") return <p className="splash">Loading…</p>;
-  
+
   const isAuthenticated = status !== "anonymous" && user;
-  return isAuthenticated ? <Outlet /> : <Navigate to="/Login" replace />;
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 function PublicGuard() {
   const { status, user } = useAuth();
-  
+
   if (status === "loading") return <p className="splash">Loading…</p>;
-  
-  const isAuthenticated = status !== "anonymous" && user;
-  return !isAuthenticated ? <Outlet /> : <Navigate to="/Home" replace />;
+
+  const isAuthenticated = status === "authenticated" && Boolean(user);
+  return !isAuthenticated ? <Outlet /> : <Navigate to="/home" replace />;
 }
 
 function MainLayout() {
@@ -43,10 +45,18 @@ function MatchPageWrapper() {
 
 export const router = createBrowserRouter([
   {
+    path: "/",
+    element: <Navigate to="/home" replace />,
+  },
+  {
     element: <PublicGuard />,
     children: [
-      { path: "/Login", element: <LoginPage /> },
-      { path: "/SignUp", element: <SignUpPage /> },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/Login", element: <Navigate to="/login" replace /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/ signup", element: <Navigate to="/signup" replace /> },
+      { path: "/signup", element: <SignUpPage /> },
+      { path: "/SignUp", element: <Navigate to="/signup" replace /> },
     ],
   },
   {
@@ -55,15 +65,18 @@ export const router = createBrowserRouter([
       {
         element: <MainLayout />,
         children: [
-          { path: "/Home", element: <HomePage /> },
-          { path: "/Match", element: <MatchPageWrapper /> },
-          { path: "/Settings", element: <SettingsPage /> },
-        ]
-      }
+          { path: "/home", element: <HomePage /> },
+          { path: "/Home", element: <Navigate to="/home" replace /> },
+          { path: "/match", element: <MatchPageWrapper /> },
+          { path: "/Match", element: <Navigate to="/match" replace /> },
+          { path: "/settings", element: <SettingsPage /> },
+          { path: "/Settings", element: <Navigate to="/settings" replace /> },
+        ],
+      },
     ],
   },
   {
     path: "*",
-    element: <Navigate to="/Login" replace />,
+    element: <NotFoundPage />,
   },
 ]);

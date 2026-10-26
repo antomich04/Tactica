@@ -1,22 +1,54 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Response, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, Request, UploadFile
 from models.UpdateEmailRequest import UpdateEmailRequest
 from models.UpdateUsernameRequest import UpdateUsernameRequest
 from models.UpdatePasswordRequest import UpdatePasswordRequest
 from models.VerifyEmailRequest import VerifyEmailRequest
 from models.VerifyEmailConfirmRequest import VerifyEmailConfirmRequest
+from models.UserPreferencesPayload import UserPreferencesPayload
 from config.rate_limiter import limiter
 from services.email_service import send_otp_email
 from services.auth_service import get_current_user, set_auth_cookies
 from services.account_service import (
-    update_username, 
-    update_email, 
-    update_password, 
+    get_account_profile,
+    update_user_preferences,
+    upload_profile_picture,
+    update_username,
+    update_email,
+    update_password,
     delete_user_account,
     request_verify_email,
-    confirm_verify_email
+    confirm_verify_email,
 )
 
 router = APIRouter(prefix="/api/account", tags=["Account"])
+
+@router.get("/me")
+@limiter.limit("10/minute")
+async def get_my_profile(request: Request, user: dict = Depends(get_current_user)):
+    return await get_account_profile(int(user["sub"]))
+
+@router.patch("/preferences")
+@limiter.limit("10/minute")
+async def change_preferences(
+    request: Request,
+    payload: UserPreferencesPayload,
+    response: Response,
+    user: dict = Depends(get_current_user),
+):
+    access_token, refresh_token, session_data = await update_user_preferences(
+        int(user["sub"]), payload
+    )
+    set_auth_cookies(response, access_token, refresh_token)
+    return session_data
+
+@router.post("/avatar")
+@limiter.limit("5/minute")
+async def change_avatar(
+    request: Request,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    return await upload_profile_picture(int(user["sub"]), file)
 
 @router.patch("/change-username")
 @limiter.limit("5/minute")

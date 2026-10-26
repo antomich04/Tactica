@@ -70,6 +70,8 @@ class ShotEvent(BaseMatchEvent):
     xg: float = Field(..., ge=0.0, le=1.0, description="Expected Goals value")
     outcome: ShotOutcome
     distance: Optional[float] = Field(None, ge=0.0, description="Distance to goal in meters")
+    end_x: Optional[float] = Field(None, ge=0.0, le=100.0)
+    end_y: Optional[float] = Field(None, ge=0.0, le=100.0)
 
 class SaveEvent(BaseMatchEvent):
     type: Literal[EventType.SAVE] = EventType.SAVE
@@ -115,6 +117,7 @@ class PossessionChangeEvent(BaseMatchEvent):
 class GenericMatchEvent(BaseMatchEvent):
     type: Literal[EventType.FOUL, EventType.SUBSTITUTION, EventType.INJURY]
     details: Optional[str] = None
+    player_off: Optional[str] = None
 
 MatchEvent = Annotated[
     Union[

@@ -63,7 +63,7 @@ def _verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
     payload = {
-        "jti": str(uuid.uuid4()),  #This guarantees 100% uniqueness
+        "jti": str(uuid.uuid4()),  # This guarantees 100% uniqueness
         "sub": str(user.id),
         "username": user.username,
         "email": user.email,
@@ -72,14 +72,40 @@ def _create_token(user: User, token_type: str, ttl_seconds: int) -> str:
         "team": user.preferences.favorite_team if user.preferences else None,
         "lang": user.preferences.language if user.preferences else "en",
         "persona": user.preferences.persona if user.preferences else "casual",
-        "exp": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+        "player_lock": getattr(user.preferences, "favorite_player", None) if user.preferences else None
     }
     return jwt.encode(payload, auth_settings.jwt_secret, algorithm="HS256")
 
+def serialize_user(user: User) -> dict:
+    prefs = user.preferences
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "email_verified": bool(user.email_verified),
+        "avatar_url": getattr(user, "avatar_url", None),
+        "preferences": {
+            "language": (prefs.language if prefs and prefs.language else "en"),
+            "persona": (prefs.persona if prefs and prefs.persona else "casual"),
+            "favorite_team": (prefs.favorite_team or None) if prefs else None,
+            "favorite_player": (getattr(prefs, "favorite_player", None) or None) if prefs else None,
+        },
+    }
+
+def _session_response(user: User, message: str) -> dict:
+    return {
+        "status": "success",
+        "message": message,
+        "expires_in": auth_settings.access_ttl,
+        "user": serialize_user(user),
+    }
+
 #Register logic
 @with_db_retry
-async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tuple[str, str]:
-    """DB work only. Returns (access_token, refresh_token) once the commit succeeded."""
+async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tuple[str, str, dict]:
+    """DB work only. Returns (access_token, refresh_token, session_data) once the commit succeeded."""
     engine = get_db_client()
 
     async with AsyncSession(engine) as db_session:
@@ -120,19 +146,19 @@ async def _register_user_db(data: dict, password_hash: Callable[[], str]) -> tup
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
-        session_data = _session_response(new_user, access_token, "User registered and logged in")
+        session_data = _session_response(new_user, "User registered and logged in")
         await db_session.commit()
-        return access_token, refresh_token
+        return access_token, refresh_token, session_data
 
-async def register_user(data: dict) -> tuple[str, str]:
+async def register_user(data: dict) -> tuple[str, str, dict]:
     return await _register_user_db(data, _lazy_hash(data["password"]))
 
-#Login logic
+# Login logic
 @with_db_retry
 async def _authenticate_user_db(
     identifier: str, password: str, existing_refresh_token: str | None = None
-) -> tuple[str, str]:
-    """DB work only. Returns (access_token, refresh_token) once the commit succeeded."""
+) -> tuple[str, str, dict]:
+    """DB work only. Returns (access_token, refresh_token, session_data) once the commit succeeded."""
     engine = get_db_client()
     now = datetime.now(timezone.utc)
 
@@ -170,19 +196,19 @@ async def _authenticate_user_db(
             expires_at=now + timedelta(seconds=auth_settings.refresh_ttl)
         )
         db_session.add(new_session)
-        session_data = _session_response(user, access_token, "Successfully logged in")
+        session_data = _session_response(user, "Successfully logged in")
         await db_session.commit()
-        return access_token, refresh_token
+        return access_token, refresh_token, session_data
 
-async def authenticate_user(data: dict, existing_refresh_token: str | None = None) -> tuple[str, str]:
+async def authenticate_user(data: dict, existing_refresh_token: str | None = None) -> tuple[str, str, dict]:
     return await _authenticate_user_db(
         data["username_or_email"], data["password"], existing_refresh_token
     )
 
-#Refresh session logic
+# Refresh session logic
 @with_db_retry
-async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, str]:
-    """DB work only. Returns the new (access_token, refresh_token) once committed."""
+async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, str, dict]:
+    """DB work only. Returns the new (access_token, refresh_token, session_data) once committed."""
     now = datetime.now(timezone.utc)
 
     engine = get_db_client()
@@ -210,11 +236,11 @@ async def _refresh_session_db(user_id: int, refresh_token: str) -> tuple[str, st
         db_session_record.refresh_token = new_refresh_token
         db_session_record.expires_at = now + timedelta(seconds=auth_settings.refresh_ttl)
 
-        session_data = _session_response(user, new_access_token, "Session refreshed")
+        session_data = _session_response(user, "Session refreshed")
         await db_session.commit()
-        return new_access_token, new_refresh_token
+        return new_access_token, new_refresh_token, session_data
 
-async def refresh_user_session(refresh_token: str | None) -> tuple[str, str]:
+async def refresh_user_session(refresh_token: str | None) -> tuple[str, str, dict]:
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token missing from cookies")
 
@@ -234,7 +260,7 @@ async def refresh_user_session(refresh_token: str | None) -> tuple[str, str]:
     user_id = int(payload["sub"])
     return await _refresh_session_db(user_id, refresh_token)
 
-#Logout logic
+# Logout logic
 @with_db_retry
 async def _delete_session_db(refresh_token: str) -> None:
     engine = get_db_client()
@@ -255,7 +281,7 @@ async def logout_user(refresh_token: str | None) -> bool:
         logger.exception("Logout: could not delete the session row (cookies were cleared)")
         return False
 
-#Password reset logic if the user forgot his current password
+# Password reset logic if the user forgot his current password
 @with_db_retry
 async def _create_reset_otp_db(email: str) -> tuple[str, str] | None:
     """Step 1 DB work. Returns (email, otp_code) if the account exists, else None."""
@@ -378,34 +404,22 @@ def create_ws_ticket(user: dict) -> dict:
             "sub": user["sub"],
             "username": user.get("username"),
             "role": user.get("role"),
+            "team": user.get("team"),
+            "lang": user.get("lang", "en"),
+            "persona": user.get("persona", "casual"),
             "type": "ws-ticket",
-            "exp": datetime.now(timezone.utc) + timedelta(seconds=auth_settings.ws_ticket_ttl)
+            "exp": datetime.now(timezone.utc) + timedelta(seconds=auth_settings.ws_ticket_ttl),
+            "player_lock": user.get("player_lock")
         },
         auth_settings.jwt_secret,
         algorithm="HS256"
     )
     return {"ticket": ticket, "expires_in": auth_settings.ws_ticket_ttl}
 
-def _session_response(user: User, access_token: str, message: str) -> dict:
-    return {
-        "status": "success",
-        "message": message,
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": auth_settings.access_ttl,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "email_verified": bool(user.email_verified),
-        }
-    }
-
 def get_ws_user(websocket: WebSocket) -> dict:
     """Validates the JWT for WebSocket connections via cookies, with CSWSH protection."""
-    allowed_origins = [os.getenv("FRONTEND_DEV_URL")]
-    origin = websocket.headers.get("origin")
+    allowed_origins = [os.getenv("FRONTEND_DEV_URL", "").rstrip("/")]
+    origin = (websocket.headers.get("origin") or "").rstrip("/")
     if origin not in allowed_origins:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized origin")
 

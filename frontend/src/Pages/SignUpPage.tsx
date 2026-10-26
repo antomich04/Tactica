@@ -2,16 +2,28 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { useAuth } from "../Providers/AuthProvider";
+import { ApiError } from "../Services/authService";
 import { Button } from "@/Components/button";
 import { Input } from "@/Components/input";
 import { Label } from "@/Components/label";
 import { AlertCircle, Activity, Radio } from "lucide-react";
 
 const BASE_INPUT_CLASSES =
-  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white text-2xl border border-slate-700 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
-
+  "h-16 px-5 w-full rounded-xl bg-slate-950 text-white !text-lg sm:!text-xl font-medium border border-slate-700 placeholder:text-slate-500 placeholder:text-base focus-visible:ring-2 focus-visible:ring-blue-500/30 focus-visible:border-blue-500 [&:-webkit-autofill]:[box-shadow:0_0_0_1000px_#020617_inset] [&:-webkit-autofill]:[-webkit-text-fill-color:#ffffff]";
 const ERROR_INPUT_CLASSES =
   "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/30";
+
+function extractError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) {
+      return String(detail[0].msg).replace(/^Value error,\s*/i, "");
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 export function SignUpPage() {
   const { register } = useAuth();
@@ -34,7 +46,7 @@ export function SignUpPage() {
 
   const handleInput = (
     field: "username" | "email" | "password" | "confirmPassword",
-    value: string
+    value: string,
   ) => {
     if (field === "username") setUsername(value);
     if (field === "email") setEmail(value);
@@ -47,13 +59,18 @@ export function SignUpPage() {
 
   const validate = () => {
     let isValid = true;
-    const errors = { username: "", email: "", password: "", confirmPassword: "" };
+    const errors = {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    };
 
     if (!username.trim()) {
-      errors.username = "Name is required.";
+      errors.username = "Username is required.";
       isValid = false;
     } else if (username.trim().length < 3 || username.trim().length > 64) {
-      errors.username = "Name must be between 3 and 64 characters.";
+      errors.username = "Username must be between 3 and 64 characters.";
       isValid = false;
     }
 
@@ -76,7 +93,8 @@ export function SignUpPage() {
       errors.password = "Password must contain at least one capital letter.";
       isValid = false;
     } else if (!/[!@#$%^&*]/.test(password)) {
-      errors.password = "Password must contain at least one special character (!@#$%^&*).";
+      errors.password =
+        "Password must contain at least one special character (!@#$%^&*).";
       isValid = false;
     } else if (/[()]/.test(password)) {
       errors.password = "Password must not contain parentheses.";
@@ -101,14 +119,9 @@ export function SignUpPage() {
 
     try {
       await register(username.trim(), email.trim(), password);
-      navigate("/Home");
+      navigate("/home");
     } catch (err: unknown) {
-      const errorMessage = axios.isAxiosError(err)
-        ? err.response?.data?.detail ?? err.message
-        : err instanceof Error
-          ? err.message
-          : "Sign up failed";
-      setFormError(typeof errorMessage === "string" ? errorMessage : "Sign up failed");
+      setFormError(extractError(err, "Sign up failed"));
     } finally {
       setBusy(false);
     }
@@ -145,7 +158,11 @@ export function SignUpPage() {
       </section>
 
       <section className="flex-1 flex items-center justify-center p-8 sm:p-12">
-        <form className="w-full max-w-[560px] flex flex-col gap-6" onSubmit={submit} noValidate>
+        <form
+          className="w-full max-w-[560px] flex flex-col gap-6"
+          onSubmit={submit}
+          noValidate
+        >
           <div>
             <h2 className="font-[family-name:var(--cond)] text-6xl mb-2 text-white leading-none">
               Create an Account
@@ -160,14 +177,14 @@ export function SignUpPage() {
               htmlFor="username"
               className={`text-lg font-semibold ${fieldErrors.username ? "text-red-500" : "text-white"}`}
             >
-              Name
+              Username
             </Label>
             <Input
               id="username"
               type="text"
               value={username}
               onChange={(e) => handleInput("username", e.target.value)}
-              placeholder="Enter your name"
+              placeholder="Enter your username"
               autoComplete="username"
               className={`${BASE_INPUT_CLASSES} ${fieldErrors.username ? ERROR_INPUT_CLASSES : ""}`}
               autoFocus
@@ -270,7 +287,7 @@ export function SignUpPage() {
                 variant="link"
                 type="button"
                 className="p-0 h-auto font-semibold text-lg text-blue-500 hover:underline bg-transparent"
-                onClick={() => navigate("/Login")}
+                onClick={() => navigate("/login")}
               >
                 Login
               </Button>

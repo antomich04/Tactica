@@ -11,6 +11,11 @@ class OverlayType(str, Enum):
     CARD = "card"
     MILESTONE = "milestone"
     RECAP_ITEM = "recap_item"
+    PENALTY_SAVE = "penalty_save"
+    YELLOW_CARD = "yellow_card"
+    SUBSTITUTION = "substitution"
+    TACTICAL_CONTROL = "tactical_control"
+    HALF_TIME = "half_time"
 
 
 class PersonaType(str, Enum):
@@ -26,7 +31,9 @@ class Overlay(BaseModel):
     timestamp: float = Field(..., ge=0.0, description="Match time in seconds from kickoff")
     duration: float = Field(..., ge=0.1, description="Time in seconds the overlay stays on screen")
     type: OverlayType
-    priority: int = Field(..., description="1 (high) to 5 (low) for rendering collision resolution")
+    priority: int = Field(
+        ..., ge=1, le=5, description="1 (high) to 5 (low) for rendering collision resolution"
+    )
     language: str = Field(..., description="Language code, e.g., 'en', 'es'")
     persona: PersonaType
     text: str = Field(..., description="The localized, persona-specific LLM-generated string")

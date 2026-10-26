@@ -1,4 +1,12 @@
-import type { Envelope, MatchEvent, MatchMetrics, MomentumPoint, Overlay } from "../types";
+import type {
+  Envelope,
+  MatchEvent,
+  MatchMetrics,
+  MatchRecap,
+  MatchSummary,
+  MomentumPoint,
+  Overlay,
+} from "../types";
 
 export const clock = (seconds: number) => {
   const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -95,6 +103,55 @@ function isOverlay(value: unknown): value is Overlay {
   );
 }
 
+function isMatchSummary(value: unknown): value is MatchSummary {
+  if (!isRecord(value) || !isRecord(value.stats)) return false;
+  const stats = value.stats;
+  const validTeamStats = (teamStats: unknown) =>
+    isRecord(teamStats) &&
+    [
+      "shots",
+      "shots_on_target",
+      "passes_attempted",
+      "passes_completed",
+      "corners",
+      "yellow_cards",
+      "red_cards",
+    ].every((field) => isFiniteNumber(teamStats[field]));
+
+  return (
+    typeof value.match_id === "string" &&
+    typeof value.home_team === "string" &&
+    typeof value.away_team === "string" &&
+    isFiniteNumber(value.home_score) &&
+    isFiniteNumber(value.away_score) &&
+    isFiniteNumber(value.match_time) &&
+    validTeamStats(stats.home) &&
+    validTeamStats(stats.away) &&
+    Array.isArray(value.key_events) &&
+    value.key_events.every(
+      (event) =>
+        isRecord(event) &&
+        typeof event.type === "string" &&
+        isFiniteNumber(event.timestamp) &&
+        typeof event.team === "string" &&
+        typeof event.player === "string" &&
+        (event.details === undefined ||
+          event.details === null ||
+          typeof event.details === "string"),
+    )
+  );
+}
+
+function isMatchRecap(value: unknown): value is MatchRecap {
+  return (
+    isRecord(value) &&
+    typeof value.match_id === "string" &&
+    typeof value.language === "string" &&
+    typeof value.persona === "string" &&
+    typeof value.text === "string"
+  );
+}
+
 function parseMomentum(value: unknown): MomentumPoint | undefined {
   if (!isRecord(value)) return undefined;
   if (isFiniteNumber(value.timestamp) && isFiniteNumber(value.score)) {
@@ -116,11 +173,23 @@ function parseMetrics(value: unknown, momentumValue?: unknown): MatchMetrics | u
     if (isFiniteNumber(value.control_index) && value.control_index >= 0 && value.control_index <= 100) {
       metrics.control_index = value.control_index;
     }
+    if (isFiniteNumber(value.home_control) && value.home_control >= 0 && value.home_control <= 100) {
+      metrics.home_control = value.home_control;
+    }
+    if (isFiniteNumber(value.away_control) && value.away_control >= 0 && value.away_control <= 100) {
+      metrics.away_control = value.away_control;
+    }
     if (typeof value.controlling_team === "string" || value.controlling_team === null) {
       metrics.controlling_team = value.controlling_team;
     }
     if (isFiniteNumber(value.recent_events_count)) {
       metrics.recent_events_count = value.recent_events_count;
+    }
+    if (typeof value.paused === "boolean") {
+      metrics.paused = value.paused;
+    }
+    if (typeof value.halftime_pause === "boolean") {
+      metrics.halftime_pause = value.halftime_pause;
     }
   }
 
@@ -142,6 +211,12 @@ export function parseMessage(raw: string): Envelope | null {
   }
 
   if (isRecord(message)) {
+    if (message.kind === "match_ended" && isMatchSummary(message.data)) {
+      return { kind: "match_ended", data: message.data };
+    }
+    if (message.kind === "match_recap" && isMatchRecap(message.data)) {
+      return { kind: "match_recap", data: message.data };
+    }
     if (message.kind === "event" && isMatchEvent(message.data)) {
       const momentum = parseMomentum(message.momentum);
       return {

@@ -1,13 +1,14 @@
 from typing import Dict, List
-from models.Event import MatchEvent, EventType, PassOutcome
+from models.Event import MatchEvent, EventType, PassOutcome, CardColor
+
 
 class StatsEngine:
-    def __init__(self):
+    def __init__(self, home_team: str = "North London Cannons", away_team: str = "London Warriors"):
         self.current_possession_team: str | None = None
-        self.home_team: str = "Arsenal"
-        self.away_team: str = "Chelsea"
+        self.home_team: str = home_team
+        self.away_team: str = away_team
         self.pass_count: Dict[str, int] = {}
-        self.chaos_index: float = 0.0  # 0 to 100
+        self.chaos_index: float = 18.0  # Starts at a calm baseline (0 to 100)
 
         # Rolling 5-minute match-time window (300 match seconds)
         self.event_window: List[MatchEvent] = []
@@ -44,8 +45,18 @@ class StatsEngine:
     def _is_in_final_third(self, e: MatchEvent) -> bool:
         return e.x > 67.0 if e.team == self.home_team else e.x < 33.0
 
+    def _recent_pass_streak(self, team: str) -> int:
+        """Counts consecutive completed passes by `team` at the tail of the window."""
+        streak = 0
+        for ev in reversed(self.event_window):
+            if ev.type == EventType.PASS and ev.team == team and getattr(ev, "outcome", None) == PassOutcome.COMPLETED:
+                streak += 1
+            elif ev.type in (EventType.POSSESSION_CHANGE, EventType.TACKLE, EventType.FOUL):
+                break
+        return streak
+
     def _team_control_score(self, team: str, total_passes: int) -> float:
-        """Computes a transparent 0-100 Control score for a specific team."""
+        """Computes a 0-100 Control score for a specific team."""
         team_passes = [e for e in self.event_window if e.type == EventType.PASS and e.team == team]
         if not team_passes:
             return 0.0
@@ -58,26 +69,27 @@ class StatsEngine:
             e for e in self.event_window if getattr(e, "team", None) == team and self._is_in_final_third(e)
         ]
 
-        #Possession share in window (0-35 pts)
-        poss_share = (len(team_passes) / max(1, total_passes)) * 35.0
-        #Pass accuracy in window (0-25 pts)
-        accuracy = (len(completed) / len(team_passes)) * 25.0
-        #Territory in opponent half (0-25 pts)
+        # 1. Possession share in window (0-32 pts)
+        poss_share = (len(team_passes) / max(1, total_passes)) * 32.0
+        # 2. Pass accuracy in window (0-26 pts)
+        accuracy = (len(completed) / len(team_passes)) * 26.0
+        # 3. Territory in opponent half (0-22 pts)
         team_total = max(1, sum(1 for e in self.event_window if getattr(e, "team", None) == team))
-        territory = (len(opp_half_events) / team_total) * 25.0
-        #Final-third penetration (0-15 pts)
-        penetration = min(15.0, len(final_third_events) * 3.0)
+        territory = (len(opp_half_events) / team_total) * 22.0
+        # 4. Final-third penetration & active pass streak bonus (0-20 pts)
+        streak_bonus = min(10.0, self._recent_pass_streak(team) * 2.2)
+        penetration = min(10.0, len(final_third_events) * 2.5) + streak_bonus
 
         return round(min(100.0, poss_share + accuracy + territory + penetration), 1)
 
     def _calculate_pulse(self) -> dict:
         """
-        Calculates deterministic Control vs. Chaos over the rolling window.
+        Calculates balanced Control vs. Chaos over the rolling window.
         """
         n_events = len(self.event_window)
         if n_events == 0:
             return {
-                "chaos_index": 0.0,
+                "chaos_index": 15.0,
                 "control_index": 50.0,
                 "home_control": 50.0,
                 "away_control": 50.0,
@@ -88,12 +100,40 @@ class StatsEngine:
         turnovers = sum(1 for e in self.event_window if e.type == EventType.POSSESSION_CHANGE)
         tackles = sum(1 for e in self.event_window if e.type == EventType.TACKLE)
         pressures = sum(1 for e in self.event_window if e.type == EventType.PRESSURE)
-        fouls_cards = sum(1 for e in self.event_window if e.type in (EventType.FOUL, EventType.CARD))
+        fouls = sum(1 for e in self.event_window if e.type == EventType.FOUL)
+        yellows = sum(
+            1 for e in self.event_window
+            if e.type == EventType.CARD and getattr(e, "card_color", None) == CardColor.YELLOW
+        )
+        reds = sum(
+            1 for e in self.event_window
+            if e.type == EventType.CARD and getattr(e, "card_color", None) == CardColor.RED
+        )
+        completed_passes = sum(
+            1 for e in self.event_window
+            if e.type == EventType.PASS and getattr(e, "outcome", None) == PassOutcome.COMPLETED
+        )
 
-        # Rate-based chaos so it scales smoothly across any tick density
-        weighted_disruptions = (turnovers * 3.2) + (tackles * 2.0) + (pressures * 1.5) + (fouls_cards * 3.5)
-        normalizer = max(8.0, n_events * 0.85)
-        self.chaos_index = round(min(100.0, (weighted_disruptions / normalizer) * 100.0), 1)
+        # Balanced disruption weights (avoids triple-counting a single tackle+turnover+pressure)
+        weighted_disruptions = (
+            (turnovers * 1.35)
+            + (tackles * 0.95)
+            + (pressures * 0.45)
+            + (fouls * 2.1)
+            + (yellows * 3.2)
+            + (reds * 6.5)
+        )
+
+        # Calmness damper from completed passes in the window
+        calm_damper = completed_passes * 0.35
+        net_disruption = max(1.5, weighted_disruptions - calm_damper)
+
+        # Smooth denominator so early-match windows don't spike to 100%
+        normalizer = max(24.0, n_events * 1.25)
+        raw_chaos = min(96.0, (net_disruption / normalizer) * 100.0)
+
+        # Exponential smoothing prevents single-event jumps to 100%
+        self.chaos_index = round((0.65 * self.chaos_index) + (0.35 * raw_chaos), 1)
 
         total_passes = sum(1 for e in self.event_window if e.type == EventType.PASS)
         home_ctrl = self._team_control_score(self.home_team, total_passes)
