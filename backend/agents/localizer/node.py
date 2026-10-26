@@ -3,7 +3,13 @@ import logging
 from pydantic import BaseModel
 from agent_framework import Executor, WorkflowContext, handler
 from agent_framework.openai import OpenAIChatClient
-from agents.state import PersonalizedOverlay, TacticaGraphState, VerificationResult
+from agents.state import (
+    PersonalizedOverlay,
+    TacticaGraphState,
+    VerificationResult,
+    effective_agent_context,
+    language_name,
+)
 from models.Overlays import Overlay, OverlayType
 
 logger = logging.getLogger(__name__)
@@ -28,7 +34,9 @@ class LocalizerExecutor(Executor):
                 "embellishment and do not add statistics.\n"
                 "- 'newcomer': Clarify jargon without adding new match facts.\n"
                 "- 'club_fan': Adapt the tone around the user's favorite club without changing facts.\n"
-                "Translate accurately into the requested language code (en, es, pt, gr)."
+                "Translate accurately into the requested language. The complete overlay text must "
+                "be written in that language; do not leave English phrases untranslated unless "
+                "they are proper names or standard football abbreviations."
             ),
         )
         self.verifier = client.as_agent(
@@ -36,7 +44,9 @@ class LocalizerExecutor(Executor):
             instructions=(
                 "Check whether the localized text is a faithful translation and style adaptation of "
                 "the verified source text. Reject added, removed, contradicted, or altered factual "
-                "claims and numbers. Do not reject solely because wording or language differs."
+                "claims and numbers. Also reject text that is not written in the requested language, "
+                "apart from proper names and standard football abbreviations. Do not reject solely "
+                "because wording differs."
             ),
         )
 
@@ -67,11 +77,15 @@ class LocalizerExecutor(Executor):
             return
 
         for user_ctx in state.user_contexts:
+            agent_ctx = effective_agent_context(user_ctx, state.match_teams)
             prompt = (
                 f"Verified Text: {state.draft.text}\n"
-                f"Target Persona: {user_ctx.persona.value}\n"
-                f"Target Language: {user_ctx.language}\n"
-                f"Favorite Club: {user_ctx.favorite_club}"
+                f"Target Persona: {agent_ctx.persona.value}\n"
+                f"Target Language: {language_name(agent_ctx.language)} "
+                f"(code: {agent_ctx.language})\n"
+                f"Write the entire localized text in {language_name(agent_ctx.language)}. "
+                "Keep proper names and standard football abbreviations unchanged.\n"
+                f"Favorite Club: {agent_ctx.favorite_club or 'None'}"
             )
             response = await self.agent.run(
                 prompt, options={"response_format": LocalizedText}
@@ -81,6 +95,8 @@ class LocalizerExecutor(Executor):
             verification_prompt = (
                 f"Verified source text: {state.draft.text}\n"
                 f"Localized text: {localized.text}\n"
+                f"Requested language: {language_name(agent_ctx.language)} "
+                f"(code: {agent_ctx.language})\n"
                 f"Primary event: {state.moment.primary_event.model_dump_json()}\n"
                 f"Allowed evidence: {state.evidence.model_dump_json()}\n"
                 f"Cited event IDs: {state.draft.cited_event_ids}"

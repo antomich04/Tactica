@@ -8,7 +8,11 @@ from services.teams_service import get_featured_matchup
 from engine.event_simulator import EventSimulator
 from engine.stats_engine import StatsEngine
 from engine.moment_detector import MomentDetector
-from engine.overlay_generator import moment_to_fast_overlay
+from engine.overlay_generator import (
+    fast_overlay_text,
+    fast_overlay_translations,
+    moment_to_fast_overlay,
+)
 from engine.momentum_tracker import MomentumTracker
 from models.Event import MatchEvent, EventType, CardColor
 from models.Moment import Moment, MomentCategory
@@ -62,11 +66,12 @@ class MatchBroadcaster:
 
     def _build_user_context(self, user: dict | None) -> UserContext:
         raw_persona = user.get("persona", "casual") if user else "casual"
+        raw_language = user.get("lang", "en") if user else "en"
         return UserContext(
             persona=PersonaType(raw_persona)
             if raw_persona in PersonaType._value2member_map_
             else PersonaType.CASUAL,
-            language=user.get("lang", "en") if user else "en",
+            language=raw_language if raw_language in ("en", "es", "pt", "gr") else "en",
             favorite_club=user.get("team") if user else None,
             player_lock=user.get("player_lock") if user else None,
         )
@@ -285,7 +290,9 @@ class MatchBroadcaster:
             },
         )
 
-    def _check_supplementary_overlay(self, event: MatchEvent, metrics: dict) -> Overlay | None:
+    def _check_supplementary_overlay(
+        self, event: MatchEvent, metrics: dict
+    ) -> tuple[Overlay, dict[str, str]] | None:
         """
         Ensures Penalty Saves, Yellow Cards, Substitutions, and Control Index Dominance
         always emit a broadcast overlay even if MomentDetector ignores them.
@@ -294,34 +301,54 @@ class MatchBroadcaster:
         if event.type == EventType.SAVE and (
             "_pen_save" in event.id or (getattr(event, "difficulty", 0) or 0) >= 0.88
         ):
-            return self._build_custom_overlay(
-                event,
-                overlay_type=OverlayType.PENALTY_SAVE,
-                text=f"PENALTY SAVED! {event.player} denies the spot-kick for {event.team}!",
-                priority=1,
-                duration=4.5,
+            values = {"player": event.player, "team": event.team}
+            return (
+                self._build_custom_overlay(
+                    event,
+                    overlay_type=OverlayType.PENALTY_SAVE,
+                    text=fast_overlay_text("penalty_save", "en", **values),
+                    priority=1,
+                    duration=4.5,
+                ),
+                fast_overlay_translations("penalty_save", **values),
             )
 
         # 2. Yellow Card
         if event.type == EventType.CARD and getattr(event, "card_color", None) == CardColor.YELLOW:
             reason = getattr(event, "reason", None) or "Tactical Foul"
-            return self._build_custom_overlay(
-                event,
-                overlay_type=OverlayType.YELLOW_CARD,
-                text=f"YELLOW CARD: {event.player} ({event.team}) is booked for a {reason.lower()}.",
-                priority=2,
-                duration=4.0,
+            values = {
+                "player": event.player,
+                "team": event.team,
+                "reason": reason.lower(),
+            }
+            return (
+                self._build_custom_overlay(
+                    event,
+                    overlay_type=OverlayType.YELLOW_CARD,
+                    text=fast_overlay_text("yellow_card", "en", **values),
+                    priority=2,
+                    duration=4.0,
+                ),
+                fast_overlay_translations("yellow_card", **values),
             )
 
         # 3. Substitution
         if event.type == EventType.SUBSTITUTION:
-            details = getattr(event, "details", None) or f"{event.player} enters the pitch"
-            return self._build_custom_overlay(
-                event,
-                overlay_type=OverlayType.SUBSTITUTION,
-                text=f"SUBSTITUTION ({event.team}): {details}.",
-                priority=3,
-                duration=4.0,
+            player_off = getattr(event, "player_off", None) or "a teammate"
+            values = {
+                "team": event.team,
+                "player_on": event.player,
+                "player_off": player_off,
+            }
+            return (
+                self._build_custom_overlay(
+                    event,
+                    overlay_type=OverlayType.SUBSTITUTION,
+                    text=fast_overlay_text("substitution", "en", **values),
+                    priority=3,
+                    duration=4.0,
+                ),
+                fast_overlay_translations("substitution", **values),
             )
 
         # 4. Tactical Control Dominance (when one team controls >= 74% and chaos is low)
@@ -334,20 +361,30 @@ class MatchBroadcaster:
             and (event.timestamp - self._last_control_overlay_match_time) >= CONTROL_MOMENT_COOLDOWN_MATCH_SECONDS
         ):
             self._last_control_overlay_match_time = event.timestamp
-            return self._build_custom_overlay(
-                event,
-                overlay_type=OverlayType.TACTICAL_CONTROL,
-                text=(
-                    f"TACTICAL CONTROL: {ctrl_team} dictating the tempo with a "
-                    f"{ctrl_idx:.1f}% Control Index (Chaos: {chaos_idx:.1f}%)."
+            values = {
+                "team": ctrl_team,
+                "control": ctrl_idx,
+                "chaos": chaos_idx,
+            }
+            return (
+                self._build_custom_overlay(
+                    event,
+                    overlay_type=OverlayType.TACTICAL_CONTROL,
+                    text=fast_overlay_text("tactical_control", "en", **values),
+                    priority=3,
+                    duration=4.5,
                 ),
-                priority=3,
-                duration=4.5,
+                fast_overlay_translations("tactical_control", **values),
             )
 
         return None
 
-    async def _paced_broadcast_overlay(self, overlay: Overlay, is_critical: bool = False):
+    async def _paced_broadcast_overlay(
+        self,
+        overlay: Overlay,
+        is_critical: bool = False,
+        localized_texts: dict[str, str] | None = None,
+    ):
         """
         Ensures every overlay stays on screen long enough to be read by a human
         before the next overlay is sent.
@@ -360,9 +397,23 @@ class MatchBroadcaster:
                     return
                 await asyncio.sleep(MIN_OVERLAY_READ_SECONDS - elapsed)
 
-            await self._broadcast_text(
-                self.overlay_subscribers, overlay.model_dump_json()
-            )
+            for websocket in list(self.overlay_subscribers):
+                user_context = self.overlay_user_contexts.get(websocket)
+                localized_overlay = overlay
+                if user_context is not None:
+                    localized_overlay = overlay.model_copy(
+                        update={
+                            "language": user_context.language,
+                            "text": (localized_texts or {}).get(
+                                user_context.language, overlay.text
+                            ),
+                        }
+                    )
+                try:
+                    await websocket.send_text(localized_overlay.model_dump_json())
+                except Exception:
+                    logger.debug("Removing disconnected overlay client.", exc_info=True)
+                    self.unregister_overlay_client(websocket)
             self._last_overlay_sent_mono = time.monotonic()
 
     async def _run_loop(self):
@@ -389,14 +440,19 @@ class MatchBroadcaster:
                 await self._broadcast_json(self.event_subscribers, event_payload)
 
                 if is_halftime_whistle:
+                    halftime_texts = fast_overlay_translations("half_time")
                     ht_overlay = self._build_custom_overlay(
                         event,
                         overlay_type=OverlayType.HALF_TIME,
-                        text="HALF TIME (45:00): The referee blows for the interval. Press Resume to kick off the 2nd half.",
+                        text=halftime_texts["en"],
                         priority=1,
                         duration=5.0,
                     )
-                    await self._paced_broadcast_overlay(ht_overlay, is_critical=True)
+                    await self._paced_broadcast_overlay(
+                        ht_overlay,
+                        is_critical=True,
+                        localized_texts=halftime_texts,
+                    )
                     continue
 
                 if moment:
@@ -405,11 +461,21 @@ class MatchBroadcaster:
                         MomentCategory.RED_CARD,
                         MomentCategory.PENALTY,
                     )
-                    fast_overlay = moment_to_fast_overlay(moment)
+                    fast_overlays = {
+                        language: moment_to_fast_overlay(moment, language)
+                        for language in ("en", "es", "pt", "gr")
+                    }
+                    fast_overlay = fast_overlays["en"]
+                    fast_texts = {
+                        language: overlay.text
+                        for language, overlay in fast_overlays.items()
+                    }
                     fast_overlay.meta["tier"] = "fast_template"
                     if not self._pending_high_priority_moments or is_crit:
                         await self._paced_broadcast_overlay(
-                            fast_overlay, is_critical=is_crit
+                            fast_overlay,
+                            is_critical=is_crit,
+                            localized_texts=fast_texts,
                         )
 
                     if self.overlay_user_contexts:
@@ -427,7 +493,11 @@ class MatchBroadcaster:
                             self._pending_high_priority_moments.add(moment.id)
                         task = asyncio.create_task(
                             self._run_agent_crew(
-                                moment, snapshot, user_contexts, moment_recipients
+                                moment,
+                                snapshot,
+                                user_contexts,
+                                moment_recipients,
+                                [self.simulator.team_a, self.simulator.team_b],
                             )
                         )
                         self._agent_tasks.add(task)
@@ -437,8 +507,9 @@ class MatchBroadcaster:
                             )
                         )
                 else:
-                    supp_overlay = self._check_supplementary_overlay(event, metrics)
-                    if supp_overlay:
+                    supplementary = self._check_supplementary_overlay(event, metrics)
+                    if supplementary:
+                        supp_overlay, supp_texts = supplementary
                         is_crit_supp = supp_overlay.type in (
                             OverlayType.PENALTY_SAVE,
                             OverlayType.YELLOW_CARD,
@@ -446,7 +517,9 @@ class MatchBroadcaster:
                         )
                         if not self._pending_high_priority_moments or is_crit_supp:
                             await self._paced_broadcast_overlay(
-                                supp_overlay, is_critical=is_crit_supp
+                                supp_overlay,
+                                is_critical=is_crit_supp,
+                                localized_texts=supp_texts,
                             )
         except asyncio.CancelledError:
             logger.info("Match simulation loop cancelled cleanly.")
@@ -628,8 +701,18 @@ class MatchBroadcaster:
         # 3. Broadcast final AI recaps over WebSockets
         if recipients:
             for user_context in unique_contexts.values():
-                recap = self._final_recaps.get(
-                    (self._final_summary.match_id, list(user_subs.values())[0] if user_subs else "")
+                context_subs = {
+                    user_subs[websocket]
+                    for websocket, recipient_context in recipients.items()
+                    if recipient_context == user_context and websocket in user_subs
+                }
+                recap = next(
+                    (
+                        self._final_recaps[(self._final_summary.match_id, user_sub)]
+                        for user_sub in context_subs
+                        if (self._final_summary.match_id, user_sub) in self._final_recaps
+                    ),
+                    None,
                 )
                 if recap:
                     await self._broadcast_match_recap(recap, user_context, recipients)
@@ -740,6 +823,7 @@ class MatchBroadcaster:
         snapshot: MatchAnalysisSnapshot,
         user_contexts: list[UserContext],
         moment_recipients: Dict[WebSocket, UserContext],
+        match_teams: list[str],
     ):
         high_priority = moment.category in (
             MomentCategory.GOAL,
@@ -758,6 +842,7 @@ class MatchBroadcaster:
                     initial_state = TacticaGraphState(
                         moment=moment,
                         user_contexts=user_contexts,
+                        match_teams=match_teams,
                     )
 
                     result = await workflow.run(initial_state)

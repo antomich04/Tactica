@@ -1,7 +1,11 @@
 from agent_framework import Executor, WorkflowContext, handler
 from agent_framework.openai import OpenAIChatClient
-from agents.state import MatchRecapWorkflowState
-from agents.state import UserContext
+from agents.state import (
+    MatchRecapWorkflowState,
+    UserContext,
+    effective_agent_context,
+    language_name,
+)
 from models.MatchRecap import MatchRecapDraft, MatchRecapMessage, MatchSummary
 
 PERSONA_STYLE = {
@@ -101,12 +105,15 @@ def build_match_recap_text(
 def build_fallback_match_recap(
     summary: MatchSummary, user_context: UserContext
 ) -> MatchRecapMessage:
+    agent_context = effective_agent_context(
+        user_context, [summary.home_team, summary.away_team]
+    )
     return MatchRecapMessage(
         match_id=summary.match_id,
         language=user_context.language,
         persona=user_context.persona,
         text=build_match_recap_text(
-            summary, user_context, _style_for_persona(user_context.persona.value)
+            summary, agent_context, _style_for_persona(agent_context.persona.value)
         ),
     )
 
@@ -127,7 +134,8 @@ class MatchSummarizerExecutor(Executor):
                 "   - analyst -> measured (tactical, cites shot/pass numbers)\n"
                 "   - newcomer -> plain (clear, welcoming, explains why the stats mattered)\n"
                 "   - club_fan -> passionate (empathetic to favorite_club if provided)\n"
-                "4. Write the `text` in the requested language code: 'en' (English), 'es' (Spanish), 'pt' (Portuguese), or 'gr' (Greek).\n"
+                "4. Write the entire `text` in the requested language. Do not use English unless "
+                "English is requested; keep team/player names and standard football abbreviations unchanged.\n"
                 "5. Never invent players, goals, or stats not present in the JSON."
             ),
         )
@@ -139,12 +147,18 @@ class MatchSummarizerExecutor(Executor):
         ctx: WorkflowContext[MatchRecapWorkflowState, None],
     ) -> None:
         user_ctx = state.user_context
-        expected_style = _style_for_persona(user_ctx.persona.value)
+        agent_ctx = effective_agent_context(
+            user_ctx, [state.summary.home_team, state.summary.away_team]
+        )
+        expected_style = _style_for_persona(agent_ctx.persona.value)
         prompt = (
-            f"Viewer Persona: {user_ctx.persona.value} (style: {expected_style})\n"
-            f"Target Language Code: {user_ctx.language}\n"
-            f"Favorite Club: {user_ctx.favorite_club or 'None'}\n"
-            f"Favorite Player: {user_ctx.player_lock or 'None'}\n\n"
+            f"Viewer Persona: {agent_ctx.persona.value} (style: {expected_style})\n"
+            f"Target Language: {language_name(agent_ctx.language)} "
+            f"(code: {agent_ctx.language})\n"
+            f"Write every sentence of `text` in {language_name(agent_ctx.language)}. "
+            "Do not write the recap in English unless English is the target language.\n"
+            f"Favorite Club: {agent_ctx.favorite_club or 'None'}\n"
+            f"Favorite Player: {agent_ctx.player_lock or 'None'}\n\n"
             f"MatchSummary JSON:\n{state.summary.model_dump_json(indent=2)}"
         )
         response = await self.agent.run(prompt, options={"response_format": MatchRecapDraft})
@@ -174,10 +188,13 @@ class MatchRecapVerifierExecutor(Executor):
         )
         if not has_scores:
             # Append the official scoreline if the LLM forgot the numbers
+            agent_context = effective_agent_context(
+                state.user_context, [summary.home_team, summary.away_team]
+            )
             fallback_line = build_match_recap_text(
                 summary,
-                state.user_context,
-                _style_for_persona(state.user_context.persona.value),
+                agent_context,
+                _style_for_persona(agent_context.persona.value),
             )
             draft_text = f"{draft_text} ({fallback_line})"
 

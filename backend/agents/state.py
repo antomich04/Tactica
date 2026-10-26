@@ -12,6 +12,34 @@ class UserContext(BaseModel):
     favorite_club: Optional[str] = None
     player_lock: Optional[str] = None
 
+
+LANGUAGE_NAMES = {
+    "en": "English",
+    "es": "Spanish",
+    "pt": "Portuguese",
+    "gr": "Greek",
+}
+
+
+def language_name(language: str) -> str:
+    return LANGUAGE_NAMES.get(language, LANGUAGE_NAMES["en"])
+
+
+def effective_agent_context(
+    user_context: UserContext, match_teams: List[str]
+) -> UserContext:
+    favorite_club = (user_context.favorite_club or "").strip().casefold()
+    playing_teams = {team.strip().casefold() for team in match_teams}
+    if (
+        user_context.persona == PersonaType.CLUB_FAN
+        and favorite_club not in playing_teams
+    ):
+        return user_context.model_copy(
+            update={"persona": PersonaType.CASUAL, "favorite_club": None}
+        )
+    return user_context
+
+
 class DirectorDecision(BaseModel):
     route: Literal["skip", "fast_narrator", "deep_analyst"]
     overlay_type: Literal[
@@ -50,6 +78,7 @@ class TacticaGraphState(BaseModel):
     """State passed between Microsoft Agent Framework Executors."""
     moment: Moment
     user_contexts: List[UserContext] = Field(default_factory=list)
+    match_teams: List[str] = Field(default_factory=list)
     director: Optional[DirectorDecision] = None
     evidence: Optional[AnalystEvidence] = None
     draft: Optional[NarratorDraft] = None

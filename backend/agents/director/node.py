@@ -1,6 +1,10 @@
 from agent_framework import Executor, WorkflowContext, handler
 from agent_framework.openai import OpenAIChatClient
-from agents.state import TacticaGraphState, DirectorDecision
+from agents.state import (
+    TacticaGraphState,
+    DirectorDecision,
+    effective_agent_context,
+)
 
 class DirectorExecutor(Executor):
     def __init__(self, client: OpenAIChatClient):
@@ -27,7 +31,8 @@ class DirectorExecutor(Executor):
             f"Moment Category: {state.moment.category}\n"
             f"Primary Event: {state.moment.primary_event.model_dump_json()}\n"
             f"Initial Stats Context: {state.moment.stats_context}\n"
-            f"Viewer Contexts: {[context.model_dump() for context in state.user_contexts]}"
+            f"Viewer Contexts: "
+            f"{[effective_agent_context(context, state.match_teams).model_dump() for context in state.user_contexts]}"
         )
         response = await self.agent.run(
             prompt, options={"response_format": DirectorDecision}
