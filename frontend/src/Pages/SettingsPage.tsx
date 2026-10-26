@@ -12,6 +12,8 @@ import {
   Camera,
   ChevronRight,
   ArrowLeft,
+  BookOpen,
+  Heart,
   X,
   CheckCircle2,
   AlertCircle,
@@ -428,11 +430,12 @@ export function SettingsPage() {
               {t("broadcastPersonaSub")}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-5">
+          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+            {/* Casual Fan */}
             <button
               type="button"
               onClick={() => handlePersonaChange("casual")}
-              className={`relative flex items-start gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl border-2 transition-all duration-200 ${
+              className={`relative flex items-start gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
                 role === "casual"
                   ? "bg-emerald-950/40 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
                   : "bg-slate-800 border-slate-700 hover:border-slate-500"
@@ -441,26 +444,25 @@ export function SettingsPage() {
               <div
                 className={`p-3 rounded-xl mt-0.5 shrink-0 ${role === "casual" ? "bg-emerald-500/20" : "bg-slate-700"}`}
               >
-                <Mic
-                  className={`w-6 h-6 ${role === "casual" ? "text-emerald-400" : "text-slate-400"}`}
-                />
+                <Mic className={`w-5 h-5 sm:w-6 sm:h-6 ${role === "casual" ? "text-emerald-400" : "text-slate-400"}`} />
               </div>
-              <div className="flex flex-col text-left pr-4">
+              <div className="flex flex-col text-left pr-2">
                 <span
                   className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "casual" ? "text-emerald-400" : "text-slate-300"}`}
                 >
                   {t("casualFan")}
                 </span>
-                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium leading-snug">
                   {t("casualFanDesc")}
                 </span>
               </div>
             </button>
 
+            {/* Tactical Analyst */}
             <button
               type="button"
               onClick={() => handlePersonaChange("analyst")}
-              className={`relative flex items-start gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl border-2 transition-all duration-200 ${
+              className={`relative flex items-start gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
                 role === "analyst"
                   ? "bg-blue-950/40 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
                   : "bg-slate-800 border-slate-700 hover:border-slate-500"
@@ -469,18 +471,70 @@ export function SettingsPage() {
               <div
                 className={`p-3 rounded-xl mt-0.5 shrink-0 ${role === "analyst" ? "bg-blue-500/20" : "bg-slate-700"}`}
               >
-                <Activity
-                  className={`w-6 h-6 ${role === "analyst" ? "text-blue-400" : "text-slate-400"}`}
-                />
+                <Activity className={`w-5 h-5 sm:w-6 sm:h-6 ${role === "analyst" ? "text-blue-400" : "text-slate-400"}`} />
               </div>
-              <div className="flex flex-col text-left pr-4">
+              <div className="flex flex-col text-left pr-2">
                 <span
                   className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "analyst" ? "text-blue-400" : "text-slate-300"}`}
                 >
                   {t("tacticalAnalystPersona")}
                 </span>
-                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium leading-snug">
                   {t("tacticalAnalystDesc")}
+                </span>
+              </div>
+            </button>
+
+            {/* Newcomer (NEW) */}
+            <button
+              type="button"
+              onClick={() => handlePersonaChange("newcomer")}
+              className={`relative flex items-start gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
+                role === "newcomer"
+                  ? "bg-amber-950/40 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                  : "bg-slate-800 border-slate-700 hover:border-slate-500"
+              }`}
+            >
+              <div
+                className={`p-3 rounded-xl mt-0.5 shrink-0 ${role === "newcomer" ? "bg-amber-500/20" : "bg-slate-700"}`}
+              >
+                <BookOpen className={`w-5 h-5 sm:w-6 sm:h-6 ${role === "newcomer" ? "text-amber-400" : "text-slate-400"}`} />
+              </div>
+              <div className="flex flex-col text-left pr-2">
+                <span
+                  className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "newcomer" ? "text-amber-400" : "text-slate-300"}`}
+                >
+                  {t("newcomerPersona")}
+                </span>
+                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium leading-snug">
+                  {t("newcomerDesc")}
+                </span>
+              </div>
+            </button>
+
+            {/* Die-Hard Club Fan (NEW) */}
+            <button
+              type="button"
+              onClick={() => handlePersonaChange("club_fan")}
+              className={`relative flex items-start gap-4 p-4 rounded-2xl border-2 transition-all duration-200 ${
+                role === "club_fan"
+                  ? "bg-rose-950/40 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]"
+                  : "bg-slate-800 border-slate-700 hover:border-slate-500"
+              }`}
+            >
+              <div
+                className={`p-3 rounded-xl mt-0.5 shrink-0 ${role === "club_fan" ? "bg-rose-500/20" : "bg-slate-700"}`}
+              >
+                <Heart className={`w-5 h-5 sm:w-6 sm:h-6 ${role === "club_fan" ? "text-rose-400" : "text-slate-400"}`} />
+              </div>
+              <div className="flex flex-col text-left pr-2">
+                <span
+                  className={`text-sm sm:text-base font-black uppercase tracking-wider ${role === "club_fan" ? "text-rose-400" : "text-slate-300"}`}
+                >
+                  {t("clubFanPersona")}
+                </span>
+                <span className="text-xs sm:text-sm text-slate-500 mt-1 font-medium leading-snug">
+                  {t("clubFanDesc")}
                 </span>
               </div>
             </button>

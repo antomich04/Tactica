@@ -25,6 +25,7 @@ import type {
   MatchSummary,
   Overlay,
   Status,
+  TeamPlayer,
 } from "../types";
 
 
@@ -63,6 +64,19 @@ export function MatchPage({ getWsTicket }: Props) {
   const [matchRecap, setMatchRecap] = useState<MatchRecap | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
   const [showMatchRecap, setShowMatchRecap] = useState(false);
+
+  const [lockedPlayer, setLockedPlayer] = useState<TeamPlayer | null>(null);
+
+  const handleToggleLockPlayer = useCallback((player: TeamPlayer) => {
+    setLockedPlayer((prev) => (prev?.id === player.id ? null : player));
+  }, []);
+
+  const lockedPlayerTeamName = useMemo(() => {
+    if (!lockedPlayer) return null;
+    if (dbTeams[0]?.id === lockedPlayer.team_id) return dbTeams[0].name;
+    if (dbTeams[1]?.id === lockedPlayer.team_id) return dbTeams[1].name;
+    return null;
+  }, [lockedPlayer, dbTeams]);
 
   useEffect(() => {
     if (hasSelectedMatchup) return;
@@ -474,20 +488,26 @@ export function MatchPage({ getWsTicket }: Props) {
               dbTeams[1]?.short_code ?? "",
             ]}
             colorOf={colorOf}
+            lockedPlayer={lockedPlayer}
+            lockedPlayerTeamName={lockedPlayerTeamName}
+            onUnlockPlayer={() => setLockedPlayer(null)}
           />
-          {dbTeams[0] && dbTeams[1] && (
-            <MatchLineups
-              homeTeam={dbTeams[0]}
-              awayTeam={dbTeams[1]}
-              events={events}
-            />
-          )}
         </section>
 
         <div className="bg-slate-900 border border-slate-600 rounded-xl overflow-hidden shadow-lg h-[500px] lg:h-auto lg:max-h-[1150px] flex flex-col">
           <EventFeed events={events} evidence={evidence} colorOf={colorOf} />
         </div>
       </main>
+
+      {dbTeams[0] && dbTeams[1] && (
+        <MatchLineups
+          homeTeam={dbTeams[0]}
+          awayTeam={dbTeams[1]}
+          events={events}
+          lockedPlayer={lockedPlayer}
+          onToggleLockPlayer={handleToggleLockPlayer}
+        />
+      )}
     </div>
   );
 }
