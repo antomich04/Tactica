@@ -4,7 +4,7 @@ Tactica is an interactive football match experience built to help fans understan
 
 ## Project Context
 
-This project was developed as part of Microsoft's **Inside the Game: Developer Hackathon**. A live demo of the app is accessible through the following link: https://icy-flower-07d3e1b0f.5.azurestaticapps.net
+This project was developed as part of Microsoft's **Inside the Game: Developer Hackathon**. A live demo of the app is accessible through the following link: https://icy-flower-07d3e1b0f.5.azurestaticapps.net. A video-presentation of this project is accessible through the following link: https://www.youtube.com/watch?v=ZmKzuvNmWHE
 
 ## Features
 
