@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import axios from "axios";
-import { AlertCircle, CheckCircle2, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import { Button } from "@/Components/button";
 import { api, ApiError } from "../Services/authService";
 import { useAuth } from "../Providers/AuthProvider";
@@ -48,7 +48,6 @@ export function AccountPreferencesModal({
   const [teamsError, setTeamsError] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +57,6 @@ export function AccountPreferencesModal({
     setFavoritePlayer(user?.preferences?.favorite_player ?? "");
     setTeamsError("");
     setError("");
-    setSuccess("");
 
     if (preference !== "favorites") return;
 
@@ -105,12 +103,11 @@ export function AccountPreferencesModal({
     event.preventDefault();
     setBusy(true);
     setError("");
-    setSuccess("");
     try {
       const response = await api.patch("/api/account/preferences", updates);
       patchUser({ preferences: response.data.user?.preferences ?? response.data.preferences }, true);
       if ("favorite_team" in updates) clearTeamsCache();
-      setSuccess(t("preferencesUpdated"));
+      onClose();
     } catch (saveError: unknown) {
       setError(extractError(saveError, t("preferencesUpdateFailure")));
     } finally {
@@ -160,13 +157,6 @@ export function AccountPreferencesModal({
             <span>{teamsError}</span>
           </div>
         )}
-        {success && (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-400">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <span>{success}</span>
-          </div>
-        )}
-
         {preference === "language" ? (
           <form
             onSubmit={(event) => void savePreferences(event, { language })}
@@ -180,7 +170,6 @@ export function AccountPreferencesModal({
                   onClick={() => {
                     setLanguage(code);
                     setError("");
-                    setSuccess("");
                   }}
                   className={`rounded-xl border-2 p-3.5 text-left font-bold transition-all ${
                     language === code
@@ -218,7 +207,6 @@ export function AccountPreferencesModal({
                   setFavoriteTeam(event.target.value);
                   setFavoritePlayer("");
                   setError("");
-                  setSuccess("");
                 }}
                 disabled={loadingTeams}
                 className="h-12 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white disabled:opacity-50"
@@ -239,7 +227,6 @@ export function AccountPreferencesModal({
                 onChange={(event) => {
                   setFavoritePlayer(event.target.value);
                   setError("");
-                  setSuccess("");
                 }}
                 disabled={!selectedClub || loadingTeams}
                 className="h-12 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white disabled:opacity-50"

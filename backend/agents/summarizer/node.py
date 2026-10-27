@@ -12,7 +12,7 @@ PERSONA_STYLE = {
     "casual": "energetic",
     "analyst": "measured",
     "newcomer": "plain",
-    "club_fan": "passionate",
+    "club_fan": "energetic",
 }
 
 RECAP_COPY = {
@@ -133,7 +133,9 @@ class MatchSummarizerExecutor(Executor):
                 "   - casual -> energetic (punchy, exciting)\n"
                 "   - analyst -> measured (tactical, cites shot/pass numbers)\n"
                 "   - newcomer -> plain (clear, welcoming, explains why the stats mattered)\n"
-                "   - club_fan -> passionate (empathetic to favorite_club if provided)\n"
+                "   - club_fan -> energetic (the same punchy, exciting tone as casual)\n"
+                "   - Only for club_fan, you may make a brief favorite_club reference when that club "
+                "is one of the teams in this match. Never refer to a favorite club that is not playing.\n"
                 "4. Write the entire `text` in the requested language. Do not use English unless "
                 "English is requested; keep team/player names and standard football abbreviations unchanged.\n"
                 "5. Never invent players, goals, or stats not present in the JSON."
@@ -159,6 +161,8 @@ class MatchSummarizerExecutor(Executor):
             "Do not write the recap in English unless English is the target language.\n"
             f"Favorite Club: {agent_ctx.favorite_club or 'None'}\n"
             f"Favorite Player: {agent_ctx.player_lock or 'None'}\n\n"
+            "Use the same energetic recap tone for casual and club_fan personas. "
+            "Only club_fan may reference Favorite Club, and only when it is playing in this match.\n"
             f"MatchSummary JSON:\n{state.summary.model_dump_json(indent=2)}"
         )
         response = await self.agent.run(prompt, options={"response_format": MatchRecapDraft})

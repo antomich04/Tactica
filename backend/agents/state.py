@@ -30,10 +30,9 @@ def effective_agent_context(
 ) -> UserContext:
     favorite_club = (user_context.favorite_club or "").strip().casefold()
     playing_teams = {team.strip().casefold() for team in match_teams}
-    if (
-        user_context.persona == PersonaType.CLUB_FAN
-        and favorite_club not in playing_teams
-    ):
+    if user_context.persona != PersonaType.CLUB_FAN:
+        return user_context.model_copy(update={"favorite_club": None})
+    if favorite_club not in playing_teams:
         return user_context.model_copy(
             update={"persona": PersonaType.CASUAL, "favorite_club": None}
         )

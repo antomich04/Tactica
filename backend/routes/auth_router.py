@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from models.RegisterRequest import RegisterRequest
 from models.LoginRequest import LoginRequest
 from models.ForgotPasswordRequest import ForgotPasswordRequest
@@ -60,7 +60,12 @@ async def logout(request: Request, response: Response):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     
-    session_destroyed = await logout_user(refresh_token)
+    try:
+        session_destroyed = await logout_user(refresh_token)
+    except HTTPException as exc:
+        response.status_code = exc.status_code
+        return {"detail": exc.detail}
+
     if not session_destroyed:
         return {"status": "success", "message": "Logged out locally"}
     return {"status": "success", "message": "Successfully logged out. Session destroyed."}

@@ -31,6 +31,7 @@ let authenticated = false;
 let expiresAt = 0;
 let inflight: Promise<Session> | null = null;
 let epoch = 0;
+let logoutInProgress = false;
 let onSessionRefreshedCallback: ((s: Session) => void) | null = null;
 
 export function setOnSessionRefreshed(cb: ((s: Session) => void) | null) {
@@ -171,6 +172,10 @@ const oneTabAtATime = <T>(fn: () => Promise<T>): Promise<T> =>
   navigator.locks ? navigator.locks.request("tactica-refresh", fn) : fn();
 
 export function refreshSession(): Promise<Session> {
+  if (logoutInProgress) {
+    return Promise.reject(new ApiError(401, "Signed out"));
+  }
+
   inflight ??= (async () => {
     const startedAt = epoch;
 
@@ -191,12 +196,20 @@ export function refreshSession(): Promise<Session> {
 }
 
 export async function logout(): Promise<void> {
+  const pendingRefresh = inflight;
+  logoutInProgress = true;
+  clearSession();
+
   try {
-    await request<void>("POST", "/api/auth/logout", undefined, {
-      cookieAuth: true,
-    });
+    if (pendingRefresh) await pendingRefresh.catch(() => undefined);
+    await oneTabAtATime(() =>
+      request<void>("POST", "/api/auth/logout", undefined, {
+        cookieAuth: true,
+      }),
+    );
   } finally {
     clearSession();
+    logoutInProgress = false;
   }
 }
 

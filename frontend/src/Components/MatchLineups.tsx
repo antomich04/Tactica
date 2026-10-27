@@ -106,7 +106,10 @@ function PlayerRow({
             ? "border-amber-400 ring-2 ring-amber-400/40 scale-105"
             : "border-white/70"
         }`}
-        style={{ backgroundColor: teamColor || "#64748b" }}
+        style={{
+          backgroundColor: teamColor || "#64748b",
+          WebkitTextStroke: "1px #000",
+        }}
         aria-label={t("squadNumberLabel", { number: player.squad_number ?? "" })}
       >
         {player.squad_number}

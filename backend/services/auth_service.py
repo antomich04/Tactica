@@ -277,9 +277,12 @@ async def logout_user(refresh_token: str | None) -> bool:
     try:
         await _delete_session_db(refresh_token)
         return True
-    except (SQLAlchemyError, OSError):
+    except (SQLAlchemyError, OSError) as exc:
         logger.exception("Logout: could not delete the session row (cookies were cleared)")
-        return False
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not revoke the server session",
+        ) from exc
 
 # Password reset logic if the user forgot his current password
 @with_db_retry

@@ -44,31 +44,87 @@ def _serialize_player(player: Player, tactical_role: str | None = None) -> dict:
     }
 
 
+def _formation_starter_quotas(formation: str) -> dict[str, int] | None:
+    parts = formation.split("-")
+    if len(parts) < 2 or not all(part.isdigit() for part in parts):
+        return None
+
+    formation_counts = [int(part) for part in parts]
+    if any(count <= 0 for count in formation_counts) or sum(formation_counts) != 10:
+        return None
+
+    return {
+        "GK": 1,
+        "DEF": formation_counts[0],
+        "MID": sum(formation_counts[1:-1]),
+        "FWD": formation_counts[-1],
+    }
+
+
 def _serialize_team(team: Team, include_players: bool = True) -> dict:
+    formation = team.formation.strip()
     data = {
         "id": team.id,
         "name": team.name,
         "short_code": team.short_code,
         "primary_color": team.primary_color,
         "secondary_color": team.secondary_color,
-        "formation": team.formation,
+        "formation": formation,
         "tactical_style": team.tactical_style,
         "stadium_name": team.stadium_name,
         "badge_svg": team.badge_svg,
     }
 
     if include_players:
-        slot_map = FORMATION_SLOTS.get(team.formation, FALLBACK_SLOTS)
+        slot_map = FORMATION_SLOTS.get(formation, FALLBACK_SLOTS)
         pos_counters = {"GK": 0, "DEF": 0, "MID": 0, "FWD": 0}
+        starters_quota = _formation_starter_quotas(formation)
+        current_starters = [player for player in team.players if player.tier == "starter"]
+        starter_ids = {player.id for player in current_starters}
+
+        if starters_quota is not None:
+            starter_counts = {
+                position: sum(
+                    player.position == position for player in current_starters
+                )
+                for position in ("DEF", "MID", "FWD")
+            }
+            if any(
+                starter_counts[position] != starters_quota[position]
+                for position in ("DEF", "MID", "FWD")
+            ):
+                starter_ids = set()
+                for position in ("GK", "DEF", "MID", "FWD"):
+                    quota = starters_quota[position]
+                    candidates = sorted(
+                        (player for player in team.players if player.position == position),
+                        key=lambda player: (
+                            player.tier != "starter",
+                            player.squad_number,
+                        ),
+                    )
+                    if len(candidates) < quota:
+                        raise ValueError(
+                            f"Team '{team.name}' does not have enough {position} players "
+                            f"for its {formation} formation"
+                        )
+                    starter_ids.update(player.id for player in candidates[:quota])
 
         all_players: list[dict] = []
         starters: list[dict] = []
         substitutes: list[dict] = []
         reserves: list[dict] = []
-
         for p in team.players:
+            is_starter = p.id in starter_ids
+            tier = (
+                "starter"
+                if is_starter
+                else "substitute"
+                if p.tier == "starter"
+                else p.tier
+            )
             tactical_role = p.position
-            if p.tier == "starter":
+            if is_starter:
                 if p.position == "GK":
                     tactical_role = "GK"
                 else:
@@ -78,11 +134,12 @@ def _serialize_team(team: Team, include_players: bool = True) -> dict:
                     pos_counters[p.position] = idx + 1
 
             serialized = _serialize_player(p, tactical_role=tactical_role)
+            serialized["tier"] = tier
             all_players.append(serialized)
 
-            if p.tier == "starter":
+            if tier == "starter":
                 starters.append(serialized)
-            elif p.tier == "substitute":
+            elif tier == "substitute":
                 substitutes.append(serialized)
             else:
                 reserves.append(serialized)
