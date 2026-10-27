@@ -26,16 +26,16 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         key="access_token",
         value=access_token,
         httponly=True,
-        secure=False, # To be changed to True when in Production mode
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=auth_settings.access_ttl
     )
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False, # To be changed to True when in Production mode
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=auth_settings.refresh_ttl
     )
 
@@ -418,7 +418,7 @@ def create_ws_ticket(user: dict) -> dict:
 
 def get_ws_user(websocket: WebSocket) -> dict:
     """Validates the JWT for WebSocket connections via cookies, with CSWSH protection."""
-    allowed_origins = [os.getenv("FRONTEND_DEV_URL", "").rstrip("/")]
+    allowed_origins = [os.getenv("FRONTEND_URL", "").rstrip("/")]
     origin = (websocket.headers.get("origin") or "").rstrip("/")
     if origin not in allowed_origins:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized origin")
