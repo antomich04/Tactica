@@ -1,6 +1,6 @@
 # Tactica
 
-Tactica is an interactive soccer match experience built to help fans understand more than just the score. Choose two clubs, follow a simulated match as it unfolds on a live pitch, and get concise, AI-generated explanations of the tactical story behind key moments. Match statistics, lineups, event updates, and momentum indicators make it easier to see how a game is developing.
+Tactica is an interactive football match experience built to help fans understand more than just the score. Choose two clubs, follow a simulated match as it unfolds on a live pitch, and get concise, AI-generated explanations of the tactical story behind key moments. Match statistics, lineups, event updates, and momentum indicators make it easier to see how a game is developing.
 
 ## Project Context
 
